@@ -1,16 +1,9 @@
-<<<<<<< ours
-from pydantic import BaseSettings, Field
-
-
-class Settings(BaseSettings):
-=======
 from pydantic import BaseSettings, Field, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
->>>>>>> theirs
     app_name: str = Field("Resume Screening Service", env="APP_NAME")
     database_url: str = Field(
         "sqlite://resumes.db",
@@ -30,11 +23,4 @@ class Settings(BaseSettings):
         env="DEFAULT_PROMPT",
     )
 
-<<<<<<< ours
-    class Config:
-        env_file = ".env"
-
-
-=======
->>>>>>> theirs
 settings = Settings()
