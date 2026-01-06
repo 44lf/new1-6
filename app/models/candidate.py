@@ -16,3 +16,7 @@ class CandidateResponse(BaseModel):
 
     class Config:
         orm_mode = True
+<<<<<<< ours
+=======
+        from_attributes = True
+>>>>>>> theirs

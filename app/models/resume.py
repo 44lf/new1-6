@@ -17,6 +17,10 @@ class ResumeCreateResponse(BaseModel):
 
     class Config:
         orm_mode = True
+<<<<<<< ours
+=======
+        from_attributes = True
+>>>>>>> theirs
 
 
 class ResumeDetail(BaseModel):
@@ -30,8 +34,16 @@ class ResumeDetail(BaseModel):
     phone: Optional[str]
     summary: Optional[str]
     avatar_url: Optional[str]
+<<<<<<< ours
+=======
+    notes: Optional[str]
+>>>>>>> theirs
     created_at: datetime
     updated_at: datetime
 
     class Config:
         orm_mode = True
+<<<<<<< ours
+=======
+        from_attributes = True
+>>>>>>> theirs

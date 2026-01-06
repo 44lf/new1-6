@@ -1,6 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 
+<<<<<<< ours
 from app.db import models
 from app.db.database import engine
 from app.routers import resumes
@@ -8,6 +9,14 @@ from app.routers import resumes
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Resume Screening Backend")
+=======
+from app.config import settings
+from app.db.database import register_db
+from app.routers import resumes
+
+app = FastAPI(title=settings.app_name)
+register_db(app)
+>>>>>>> theirs
 app.include_router(resumes.router)
 
 
