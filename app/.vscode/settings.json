@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "C:/Users/Windows/anaconda3/envs/ai1120/python.exe",
+  "python.languageServer": "Pylance",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.autoImportCompletions": true
+}
