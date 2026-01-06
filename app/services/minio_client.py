@@ -1,15 +1,5 @@
-<<<<<<< ours
-<<<<<<< ours
-from typing import BinaryIO
-
-=======
 import asyncio
 from io import BytesIO
->>>>>>> theirs
-=======
-import asyncio
-from io import BytesIO
->>>>>>> theirs
 from urllib.parse import urlparse
 
 from minio import Minio
@@ -34,26 +24,6 @@ class MinioService:
         if not self._client.bucket_exists(self._bucket):
             self._client.make_bucket(self._bucket)
 
-<<<<<<< ours
-<<<<<<< ours
-    def upload_file(self, file_obj: BinaryIO, filename: str, content_type: str) -> str:
-        try:
-            result = self._client.put_object(
-                self._bucket,
-                filename,
-                data=file_obj,
-                length=-1,
-                part_size=10 * 1024 * 1024,
-                content_type=content_type,
-            )
-            return f"{self._base_url}/{self._bucket}/{result.object_name}"
-        except S3Error as exc:
-            raise RuntimeError(f"Failed to upload to MinIO: {exc}") from exc
-
-    def upload_bytes(self, content: bytes, filename: str, content_type: str) -> str:
-=======
-=======
->>>>>>> theirs
     async def upload_file(self, content: bytes, filename: str, content_type: str) -> str:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -61,39 +31,17 @@ class MinioService:
         )
 
     def _put_object(self, stream: BytesIO, filename: str, content_type: str) -> str:
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
         try:
             result = self._client.put_object(
                 self._bucket,
                 filename,
-<<<<<<< ours
-<<<<<<< ours
-                data=content,
-                length=len(content),
-=======
                 data=stream,
                 length=stream.getbuffer().nbytes,
->>>>>>> theirs
-=======
-                data=stream,
-                length=stream.getbuffer().nbytes,
->>>>>>> theirs
                 content_type=content_type,
             )
             return f"{self._base_url}/{self._bucket}/{result.object_name}"
         except S3Error as exc:
-<<<<<<< ours
-<<<<<<< ours
-            raise RuntimeError(f"Failed to upload bytes to MinIO: {exc}") from exc
-=======
             raise RuntimeError(f"Failed to upload to MinIO: {exc}") from exc
->>>>>>> theirs
-=======
-            raise RuntimeError(f"Failed to upload to MinIO: {exc}") from exc
->>>>>>> theirs
 
     def _normalize_endpoint(self, endpoint: str) -> str:
         parsed = urlparse(endpoint)
