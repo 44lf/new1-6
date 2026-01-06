@@ -1,5 +1,6 @@
 import base64
 <<<<<<< ours
+<<<<<<< ours
 import io
 from datetime import datetime
 from typing import Optional
@@ -11,6 +12,8 @@ from app.config import settings
 from app.db import models
 from app.db.database import SessionLocal
 =======
+=======
+>>>>>>> theirs
 from datetime import datetime
 from typing import Optional
 
@@ -19,6 +22,9 @@ from fastapi import BackgroundTasks, UploadFile
 
 from app.config import settings
 from app.db import models
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
 from app.models.resume import ResumeCreateResponse
 from app.services.llm_client import LLMService
@@ -26,6 +32,7 @@ from app.services.minio_client import MinioService
 
 
 class ResumeService:
+<<<<<<< ours
 <<<<<<< ours
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -40,15 +47,21 @@ class ResumeService:
         return resume
 
 =======
+=======
+>>>>>>> theirs
     def __init__(self) -> None:
         self.minio = MinioService()
         self.llm = LLMService()
 
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
     async def upload_and_process(
         self, background_tasks: BackgroundTasks, file: UploadFile, prompt: Optional[str] = None
     ) -> ResumeCreateResponse:
         file_bytes = await file.read()
+<<<<<<< ours
 <<<<<<< ours
         buffer = io.BytesIO(file_bytes)
         file_url = self.minio.upload_file(buffer, file.filename, file.content_type or "application/octet-stream")
@@ -81,6 +94,8 @@ class ResumeService:
 
     async def _handle_llm_result(self, db: Session, resume: models.Resume, result: dict) -> None:
 =======
+=======
+>>>>>>> theirs
         file_url = await self.minio.upload_file(file_bytes, file.filename, file.content_type or "application/pdf")
 
         resume = await models.Resume.create(filename=file.filename, file_url=file_url)
@@ -113,6 +128,9 @@ class ResumeService:
         avatar_data = result.get("avatar")
         avatar_url = await self._maybe_upload_avatar(avatar_data) if avatar_data else None
 
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
         resume.candidate_name = result.get("name")
         resume.email = result.get("email")
@@ -120,14 +138,18 @@ class ResumeService:
         resume.summary = result.get("summary")
         resume.notes = result.get("notes")
 <<<<<<< ours
+<<<<<<< ours
 
         qualified = bool(result.get("qualified"))
+=======
+>>>>>>> theirs
 =======
 >>>>>>> theirs
         resume.preselection_status = (
             models.PreselectionStatus.QUALIFIED if qualified else models.PreselectionStatus.REJECTED
         )
         resume.status = models.ResumeStatus.COMPLETED
+<<<<<<< ours
 <<<<<<< ours
         resume.updated_at = datetime.utcnow()
 
@@ -144,6 +166,8 @@ class ResumeService:
             return None
 
 =======
+=======
+>>>>>>> theirs
         resume.avatar_url = avatar_url
         resume.updated_at = datetime.utcnow()
         await resume.save()
@@ -160,6 +184,9 @@ class ResumeService:
             )
 
     async def _maybe_upload_avatar(self, avatar_data: str) -> Optional[str]:
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
         try:
             content = base64.b64decode(avatar_data)
@@ -167,6 +194,7 @@ class ResumeService:
             return None
 
         filename = f"avatars/{datetime.utcnow().timestamp()}.png"
+<<<<<<< ours
 <<<<<<< ours
         return self.minio.upload_bytes(content, filename, "image/png")
 
@@ -180,6 +208,8 @@ class ResumeService:
         )
         db.add(candidate)
 =======
+=======
+>>>>>>> theirs
         return await self.minio.upload_file(content, filename, "image/png")
 
     def _extract_text(self, file_bytes: bytes) -> str:
@@ -189,4 +219,7 @@ class ResumeService:
         except Exception:
             # Fallback to raw text decode
             return file_bytes.decode("utf-8", errors="ignore")
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs

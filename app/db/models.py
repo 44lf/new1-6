@@ -1,4 +1,5 @@
 <<<<<<< ours
+<<<<<<< ours
 from datetime import datetime
 from enum import Enum
 
@@ -7,10 +8,15 @@ from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 =======
+=======
+>>>>>>> theirs
 from enum import Enum
 
 from tortoise import fields
 from tortoise.models import Model
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
 
 
@@ -27,6 +33,7 @@ class PreselectionStatus(str, Enum):
     REJECTED = "rejected"
 
 
+<<<<<<< ours
 <<<<<<< ours
 class Resume(Base):
     __tablename__ = "resumes"
@@ -64,6 +71,8 @@ class Candidate(Base):
 
     resume = relationship("Resume", back_populates="candidate", uselist=False)
 =======
+=======
+>>>>>>> theirs
 class Resume(Model):
     id = fields.IntField(pk=True)
     filename = fields.CharField(max_length=255)
@@ -93,4 +102,7 @@ class Candidate(Model):
     avatar_url = fields.CharField(max_length=512, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs

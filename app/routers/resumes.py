@@ -1,7 +1,12 @@
 <<<<<<< ours
+<<<<<<< ours
 from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
 
 from app.db.database import get_db
+=======
+from fastapi import APIRouter, BackgroundTasks, File, UploadFile
+
+>>>>>>> theirs
 =======
 from fastapi import APIRouter, BackgroundTasks, File, UploadFile
 
@@ -18,9 +23,14 @@ async def upload_resume(
     file: UploadFile = File(...),
     prompt: str | None = None,
 <<<<<<< ours
+<<<<<<< ours
     db=Depends(get_db),
 ):
     service = ResumeService(db)
+=======
+):
+    service = ResumeService()
+>>>>>>> theirs
 =======
 ):
     service = ResumeService()

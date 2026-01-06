@@ -1,16 +1,23 @@
 <<<<<<< ours
+<<<<<<< ours
 import httpx
 =======
+=======
+>>>>>>> theirs
 import json
 from typing import Any, Dict
 
 from openai import AsyncOpenAI
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
 
 from app.config import settings
 
 
 class LLMService:
+<<<<<<< ours
 <<<<<<< ours
     async def analyze_resume(self, resume_text: str, prompt: str) -> dict:
         """
@@ -34,6 +41,8 @@ class LLMService:
             response.raise_for_status()
             return response.json()
 =======
+=======
+>>>>>>> theirs
     def __init__(self) -> None:
         self.client = AsyncOpenAI(
             api_key=settings.openai_api_key, base_url=settings.openai_base_url or None
@@ -61,4 +70,7 @@ class LLMService:
             return json.loads(content)
         except json.JSONDecodeError:
             return {}
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
