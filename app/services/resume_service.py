@@ -1,5 +1,7 @@
 import uuid
 import traceback # 用于打印详细报错
+from typing import Optional
+from tortoise.expressions import Q
 from app.db.resume_table import Resume
 from app.db.candidate_table import Candidate
 from app.services.prompt_service import PromptService
@@ -152,3 +154,68 @@ class ResumeService:
             # 也可以把错误信息存个字段，方便前端展示
             resume.reason = f'解析失败:{str(e)[:500]}'
             await resume.save()
+
+    @staticmethod
+    async def get_resumes(
+        status: Optional[int] = None,
+        is_qualified: Optional[bool] = None,
+        name: Optional[str] = None,
+        university: Optional[str] = None,
+        major: Optional[str] = None,
+        skill: Optional[str] = None
+    ):
+        query = Resume.all()
+
+        # 1. 基础状态筛选
+        if status is not None:
+            query = query.filter(status=status)
+
+        if is_qualified is not None:
+            query = query.filter(is_qualified=is_qualified)
+
+        # 2. 内容模糊搜索 (模拟 HR 的搜索习惯)
+        if name:
+            # 搜索简历解析出的姓名
+            query = query.filter(name__icontains=name)
+
+        if university:
+            query = query.filter(university__icontains=university)
+
+        if major:
+            query = query.filter(major__icontains=major)
+
+        # 3. 技能搜索 (JSON 字段搜索)
+        if skill:
+            query = query.filter(skills__icontains=skill)
+
+        return await query.order_by("-created_at")
+
+    @staticmethod
+    async def delete_resumes_by_info(
+        name: Optional[str] = None,
+        email: Optional[str] = None,
+        phone: Optional[str] = None
+    ) -> int:
+        """
+        按自然信息删除简历
+        """
+        if not any([name, email, phone]):
+            return 0
+
+        query = Resume.all()
+
+        # 精确匹配，防止误删
+        if name:
+            query = query.filter(name=name)
+        if email:
+            query = query.filter(email=email)
+        if phone:
+            query = query.filter(phone=phone)
+
+        count = await query.count()
+        if count > 0:
+            # 注意：如果数据库设置了级联删除(CASCADE)，
+            # 这里的删除操作也会自动删除关联的 Candidate 记录
+            await query.delete()
+
+        return count
