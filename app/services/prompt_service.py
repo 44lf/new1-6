@@ -81,7 +81,7 @@ class PromptService:
     @staticmethod
     async def search_prompts(keyword: str) -> List[Prompt]:
         """根据关键词搜索提示词（名称或内容）"""
-        return await Prompt.filter(name__icontains=keyword) | await Prompt.filter(content__icontains=keyword)
+        return await Prompt.filter(name__icontains=keyword) | await Prompt.filter(content__icontains=keyword) # type: ignore
     
     @staticmethod
     async def get_prompts_count() -> int:
