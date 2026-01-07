@@ -12,7 +12,7 @@ class Resume(models.Model):
     status = fields.IntField(default=0, description="处理状态")
 
     #简历基础内容
-    name = fields.CharField(max_length=50, description='姓名')
+    name = fields.CharField(max_length=50, null=True, description='姓名')
     phone = fields.CharField(max_length=50, null=True, description="联系电话")
     email = fields.CharField(max_length=100, null=True, description="邮箱")
 
@@ -32,6 +32,9 @@ class Resume(models.Model):
     is_qualified = fields.BooleanField(default=False, description="是否合格")
 
     reason = fields.TextField(null=True, description="AI判断合格/不合格的理由")
+
+    #关联岗位
+    prompt = fields.ForeignKeyField('models.Prompt', related_name='resumes', null=True, description="关联的岗位提示词")
     # 记录上传时间，auto_now_add=True 表示创建时自动填当前时间
     created_at = fields.DatetimeField(auto_now_add=True)
 

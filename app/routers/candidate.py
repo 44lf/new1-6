@@ -1,13 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
-
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Query
+from typing import Optional
 from app.services.candidate_service import CandidateService
-
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
 @router.get("/", summary="获取合格候选人列表")
-async def list_candidates():
-    return await CandidateService.get_all_candidates()
+async def list_candidates(
+    prompt_id: Optional[int] = Query(None, description="按岗位(提示词ID)筛选")
+):
+    """
+    查询候选人列表。
+    如果不传 prompt_id，返回所有；
+    如果传了，只返回该特定岗位的候选人。
+    """
+    return await CandidateService.get_all_candidates(prompt_id)
 
 @router.put("/{candidate_id}", summary="更新候选人信息")
 async def update_candidate(candidate_id: int, payload: dict = Body(...)):
