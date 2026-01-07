@@ -2,22 +2,27 @@ from fastapi import FastAPI
 from tortoise.contrib.fastapi import register_tortoise
 from app.settings import TORTOISE_ORM
 
+# 1. 引入路由
+from app.routers.resume import router as resume_router
+from app.routers.prompt import router as prompt_router
+from app.routers.candidate import router as candidate_router
 
-# 1. 创建 FastAPI APP
+# 2. 创建 APP
 app = FastAPI(title="简历智能解析系统")
 
-# 2. 注册数据库
-# 这一步非常关键，它把 Tortoise 和 FastAPI 绑在一起了
+# 3. 注册路由
+app.include_router(resume_router)
+app.include_router(prompt_router)
+app.include_router(candidate_router)
+
+# 4. 注册数据库
 register_tortoise(
     app,
     config=TORTOISE_ORM,
-    generate_schemas=True,  # 【重要】这句话的意思是：如果表不存在，就自动帮我建表！
+    generate_schemas=True,
     add_exception_handlers=True,
 )
 
-# 3. 写个简单的测试接口，看看服务能不能通
 @app.get("/")
 def read_root():
-    return {"message": "服务已启动，数据库连接正常！"}
-
-# 注意：以后我们的路由（Router）会加在这里
+    return {"message": "服务已启动，请访问 /docs 查看接口文档"}
