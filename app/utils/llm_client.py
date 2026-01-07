@@ -33,6 +33,16 @@ class LLMClient:
                     "major": "专业名称",
                     "graduation_year": "毕业年份 (例如 2024)"
                 },
+                #历史学历
+                "education_history": [
+                    {
+                        "university": "学校名称",
+                        "major": "专业",
+                        "degree": "学历 (本科/硕士/博士)",
+                        "start": "开始年份",
+                        "end": "结束年份"
+                    }
+                ],
                 "skills": ["技能1", "技能2", "技能3"],
                 "work_experience": [
                     {
@@ -49,7 +59,7 @@ class LLMClient:
                         "description": "项目描述"
                     }
                 ],
-                "reason": "判断合格或不合格的简短理由 (100字以内)"
+                "reason": "判断合格或不合格的简短理由 (20字以内)"
             }
         }
 
