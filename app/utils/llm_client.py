@@ -1,5 +1,5 @@
 import json
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI # type: ignore
 from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
 
 # 初始化异步客户端

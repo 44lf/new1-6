@@ -45,7 +45,7 @@ class MinioClient:
                 object_name,
                 data_stream,
                 length=file_size,
-                content_type=file.content_type
+                content_type=file.content_type # type: ignore
             )
         
         await asyncio.to_thread(_upload)
@@ -86,7 +86,7 @@ class MinioClient:
                     response.close()
                     response.release_conn()
 
-        return await asyncio.to_thread(_get)
+        return await asyncio.to_thread(_get) # type: ignore
     
     # 顺便加一个上传 bytes 的方法，用于上传提取出来的头像
     @classmethod
