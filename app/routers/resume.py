@@ -30,7 +30,7 @@ async def upload_resume(
     resume = await ResumeService.create_resume_record(file_url=file_url)
 
     # ✅ 关键修复：确保数据已提交（非常重要）
-    await resume.fetch_from_db()
+    await resume.refresh_from_db()
 
     # 4. 添加后台解析任务
     background_tasks.add_task(

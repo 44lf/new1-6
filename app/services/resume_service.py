@@ -56,7 +56,9 @@ class ResumeService:
 
             # 4. 使用 fitz (PyMuPDF) 解析 PDF
             text_content, avatar_data = PdfParser.parse_pdf(file_bytes)
-            
+
+            print(f"DEBUG - 提取到的文本内容 (前200字): {text_content[:200]}")
+
             # 如果没提取到文本 (可能是纯图片扫描件)，且我们还没做 OCR
             if not text_content or len(text_content.strip()) < 10:
                 raise Exception("无法从PDF中提取有效文本，请确认简历不是纯图片扫描件")
@@ -64,6 +66,9 @@ class ResumeService:
             # 5. 调用 LLM 进行分析
             print("正在调用 LLM 进行解析...")
             parse_result = await LLMClient.parse_resume(text_content, prompt_obj.content)
+
+            import json
+            print(f"DEBUG - LLM 解析结果: {json.dumps(parse_result, ensure_ascii=False)}")
 
             # === 1. 提取数据 (这是你缺少的步骤) ===
             json_data = parse_result.get("json_data", {})
