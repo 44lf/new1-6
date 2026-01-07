@@ -2,6 +2,7 @@ import uuid
 from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException
 from app.services.resume_service import ResumeService
 from app.utils.minio_client import MinioClient
+from app.db.resume_table import Resume
 from app.settings import MINIO_BUCKET_NAME
 
 router = APIRouter(prefix="/resumes", tags=["Resumes"])
@@ -53,3 +54,27 @@ async def get_resume_status(resume_id: int):
     if not resume:
         raise HTTPException(status_code=404, detail="简历不存在")
     return resume
+
+
+
+@router.post('/{resume_id}/analyze',summary='重新分析简历')
+async def resume_analyze(
+        resume_id: int,
+        background_tasks: BackgroundTasks
+):
+    """
+    用于当提示词更新后，或者之前的解析失败时，
+    手动让大模型重新分析指定的简历。
+    """
+    resume = await Resume.get_or_none(id=resume_id)
+    if not resume:
+        raise HTTPException(status_code=404, detail="简历不存在")
+
+    background_tasks.add_task(ResumeService.process_resume_workflow, resume.id)
+
+    return {
+        "code": 200,
+        "message": "已将简历重新加入解析队列"
+    }
+
+

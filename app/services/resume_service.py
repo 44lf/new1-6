@@ -75,6 +75,12 @@ class ResumeService:
 
             # 7. 如果是合格候选人，处理头像并创建 Candidate
             if is_qualified:
+                # 如果这个简历之前已经被识别为候选人，先删除旧记录
+                old_candidates = await Candidate.filter(resume_id=resume.id).all()
+                for old_cand in old_candidates:
+                    print(f"删除旧候选人记录: {old_cand.id}")
+                    await old_cand.delete()
+
                 avatar_url = None
                 
                 # 如果 fitz 提取到了头像，上传到 MinIO
