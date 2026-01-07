@@ -1,137 +1,86 @@
+import uuid
+import traceback # 用于打印详细报错
 from app.db.resume_table import Resume
 from app.db.candidate_table import Candidate
 from app.services.prompt_service import PromptService
-import uuid
 from app.utils.minio_client import MinioClient
 from app.utils.llm_client import LLMClient
 from app.utils.pdf_parser import PdfParser
-
-
-# 假设的工具类导入
-# from app.utils.llm_client import LLMClient 
-# from app.utils.minio_client import MinioClient 
+from app.settings import MINIO_BUCKET_NAME # <--- 【修复】新增导入
 
 class ResumeService:
     @staticmethod
     async def create_resume_record(file_url: str) -> Resume:
         """创建简历初始记录"""
-        return await Resume.create(file_url=file_url, status=0) # 0=Pending
+        # 0=Pending
+        return await Resume.create(file_url=file_url, status=0) 
 
     @staticmethod
     async def process_resume_workflow(resume_id: int):
         """
-        【核心业务逻辑】后台异步执行的任务
+        【核心业务逻辑】后台异步执行的任务：PDF解析 + LLM判断 + 结果回写
         """
         print(f"Service: 开始处理简历 {resume_id}")
+        
+        # 1. 获取简历记录
         resume = await Resume.get_or_none(id=resume_id)
         if not resume:
+            print(f"Service: 未找到简历ID {resume_id}")
             return
 
-        # 1. 更新状态为处理中
-        resume.status = 1 # Processing
+        # 更新状态为处理中 (1=Processing)
+        resume.status = 1 
         await resume.save()
 
         try:
-            # 2. 获取 Prompt
+            # 2. 准备环境：获取启用提示词
             prompt_obj = await PromptService.get_active_prompt()
             if not prompt_obj:
-                raise Exception("没有启用的提示词，无法解析")
+                raise Exception("系统未配置启用的提示词 (Prompt)，无法解析")
 
-            # 3. 读取文件内容 (伪代码)
-            # file_content = await MinioClient.get_text(resume.file_url)
-            file_content = "模拟的简历文本内容..." 
-
-            # 4. 调用 LLM (伪代码)
-            # parse_data = await LLMClient.parse(content=file_content, prompt=prompt_obj.content)
+            # 3. 从 MinIO 下载二进制文件
+            # 逻辑：从完整 URL 中提取 object_name。
+            # 假设 file_url 格式如: http://127.0.0.1:9000/resumes/2023/file.pdf
+            # split 之后取最后一部分作为文件名，但这可能不够严谨。
+            # 更稳妥的方式是在 create_resume_record 时直接存 object_name，这里先兼容处理：
+            if f"/{MINIO_BUCKET_NAME}/" in resume.file_url:
+                object_name = resume.file_url.split(f"/{MINIO_BUCKET_NAME}/")[-1]
+            else:
+                # 容错：如果 URL 格式不对，直接尝试用 URL 最后一段
+                object_name = resume.file_url.split("/")[-1]
             
-            # --- 模拟 LLM 返回结果 ---
-            parse_data = {
-                "is_qualified": True,
-                "json_data": {"name": "张三", "skills": ["Python"]},
-                "candidate_info": {"name": "张三", "phone": "13800138000", "email": "zhang@abc.com"}
-            }
-            # -----------------------
-
-            # 5. 更新简历结果
-            resume.parse_result = parse_data["json_data"]
-            resume.is_qualified = parse_data["is_qualified"]
-            resume.status = 2 # Completed
-            await resume.save()
-
-            # 6. 如果合格，触发候选人生成逻辑
-            if resume.is_qualified:
-                await ResumeService._create_candidate_from_resume(resume, parse_data["candidate_info"])
-
-        except Exception as e:
-            print(f"处理失败: {e}")
-            resume.status = 4 # Failed
-            await resume.save()
-
-    @staticmethod
-    async def _create_candidate_from_resume(resume: Resume, info: dict):
-        """
-        内部私有方法：合格后生成候选人
-        """
-        # 这里可能还涉及下载头像上传 MinIO 的逻辑，建议封装在 Service 内部
-        await Candidate.create(
-            name=info.get("name"),
-            phone=info.get("phone"),
-            email=info.get("email"),
-            resume=resume
-        )
-    @staticmethod
-    async def process_resume_workflow(resume_id: int):
-        """
-        后台任务：PDF解析 + LLM判断 + 结果回写
-        """
-        print(f"Service: 开始处理简历 {resume_id}")
-        resume = await Resume.get_or_none(id=resume_id)
-        if not resume:
-            return
-
-        resume.status = 1 # Processing
-        await resume.save()
-
-        try:
-            # 1. 准备环境：获取 Prompt
-            prompt_obj = await PromptService.get_active_prompt()
-            if not prompt_obj:
-                raise Exception("未找到启用的提示词")
-
-            # 2. 【核心变化】从 MinIO 下载二进制文件
-            # 假设 resume.file_url 存的是完整URL，我们需要提取 object_name
-            # 这里简化处理，假设你存的时候 file_url 就是 "resumes/xxx.pdf" 或者是完整 URL 需要截取
-            # 为了方便，建议存入库的时候直接保留 object_name，或者这里解析一下
-            object_name = resume.file_url.split(f"/{MinioClient.MINIO_BUCKET_NAME}/")[-1]
-            
+            print(f"正在从 MinIO 下载: {object_name}")
             file_bytes = await MinioClient.get_file_bytes(object_name)
             if not file_bytes:
-                raise Exception("文件下载失败或文件为空")
+                raise Exception("文件下载失败或文件内容为空")
 
-            # 3. 【核心变化】使用 fitz 解析 PDF
+            # 4. 使用 fitz (PyMuPDF) 解析 PDF
             text_content, avatar_data = PdfParser.parse_pdf(file_bytes)
             
-            if not text_content:
-                raise Exception("无法从PDF中提取文本，可能是纯图片扫描件")
+            # 如果没提取到文本 (可能是纯图片扫描件)，且我们还没做 OCR
+            if not text_content or len(text_content.strip()) < 10:
+                raise Exception("无法从PDF中提取有效文本，请确认简历不是纯图片扫描件")
 
-            # 4. 调用 LLM 进行分析
+            # 5. 调用 LLM 进行分析
+            print("正在调用 LLM 进行解析...")
             parse_result = await LLMClient.parse_resume(text_content, prompt_obj.content)
             
-            # 5. 更新 Resume 表
+            # 6. 更新 Resume 表
             is_qualified = parse_result.get("is_qualified", False)
-            resume.parse_result = parse_result.get("json_data", {})
+            resume.parse_result = parse_result.get("json_data", {}) # 确保这里字段对应 LLM 返回结构
             resume.is_qualified = is_qualified
-            resume.status = 2 # Completed
+            resume.status = 2 # 2=Completed
             await resume.save()
+            print(f"简历解析完成，结果: {'合格' if is_qualified else '不合格'}")
 
-            # 6. 【核心变化】如果是合格候选人，处理头像并创建 Candidate
+            # 7. 如果是合格候选人，处理头像并创建 Candidate
             if is_qualified:
                 avatar_url = None
                 
                 # 如果 fitz 提取到了头像，上传到 MinIO
                 if avatar_data:
                     ext = avatar_data['ext']
-                    # 生成一个新的文件名，避免覆盖
+                    # 生成一个新的文件名，防止覆盖，例如: avatars/uuid.png
                     avatar_filename = f"avatars/{uuid.uuid4()}.{ext}"
                     content_type = f"image/{ext}"
                     
@@ -141,9 +90,10 @@ class ResumeService:
                         avatar_filename, 
                         content_type
                     )
-                    print(f"头像上传成功: {avatar_url}")
+                    print(f"检测到头像并上传成功: {avatar_url}")
 
                 # 提取 LLM 解析出的候选人基本信息
+                # 注意：这里要跟 LLMClient 返回的结构对齐
                 cand_info = parse_result.get("candidate_info", {})
                 
                 # 创建候选人记录
@@ -154,11 +104,13 @@ class ResumeService:
                     avatar_url=avatar_url, # 存入刚才上传的头像 URL
                     resume=resume
                 )
-                print("合格候选人记录创建成功")
+                print(">>> 合格候选人记录已创建")
 
         except Exception as e:
-            import traceback
+            # 打印完整的错误堆栈，方便调试
             traceback.print_exc()
-            print(f"处理失败: {e}")
-            resume.status = 4 # Failed
+            print(f"Error: 简历处理流程失败: {str(e)}")
+            
+            resume.status = 4 # 4=Failed
+            # 也可以把错误信息存个字段，方便前端展示
             await resume.save()
