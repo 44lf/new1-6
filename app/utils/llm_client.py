@@ -137,9 +137,7 @@ class LLMClient:
 
     @staticmethod
     def _normalize_data_no_regex(data: dict) -> dict:
-        """
-        不使用正则清洗数据（并补齐结构，避免缺键导致“清洗了空气”）
-        """
+
         data.setdefault("candidate_info", {})
         json_data = data.setdefault("json_data", {})
 
