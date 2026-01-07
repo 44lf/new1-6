@@ -64,53 +64,79 @@ class ResumeService:
             # 5. 调用 LLM 进行分析
             print("正在调用 LLM 进行解析...")
             parse_result = await LLMClient.parse_resume(text_content, prompt_obj.content)
-            
-            # 6. 更新 Resume 表
-            is_qualified = parse_result.get("is_qualified", False)
-            resume.parse_result = parse_result.get("json_data", {}) # 确保这里字段对应 LLM 返回结构
-            resume.is_qualified = is_qualified
-            resume.status = 2 # 2=Completed
+
+            # === 1. 提取数据 (这是你缺少的步骤) ===
+            json_data = parse_result.get("json_data", {})
+            cand_info = parse_result.get("candidate_info", {})
+
+            # 辅助函数：防止 json_data 里没有 education 字段导致报错
+            def get_edu_field(key):
+                return json_data.get("education", {}).get(key)
+
+            # === 2. 更新 Resume 表 (这是你缺少的步骤) ===
+            resume.is_qualified = parse_result.get("is_qualified", False)
+            resume.parse_result = json_data
+            resume.reason = json_data.get("reason")
+
+            # 【关键修复A】必须把 prompt_obj 存入，否则无法按岗位筛选！
+            resume.prompt = prompt_obj
+
+            # 【关键修复B】把基础信息填入 Resume 表的新字段
+            resume.name = cand_info.get("name")
+            resume.phone = cand_info.get("phone")
+            resume.email = cand_info.get("email")
+
+            resume.university = get_edu_field("university")
+            resume.major = get_edu_field("major")
+            resume.graduation_time = get_edu_field("graduation_year")
+
+            # 复杂结构建议由 Prompt 保证返回列表，或者在这里做类型检查
+            resume.skills = json_data.get("skills")
+            resume.education_history = json_data.get("education_history") # 需Prompt配合
+
+            resume.status = 2 # Completed
             await resume.save()
-            print(f"简历解析完成，结果: {'合格' if is_qualified else '不合格'}")
+            print(f"简历解析完成，结果: {'合格' if resume.is_qualified else '不合格'}")
 
             # 7. 如果是合格候选人，处理头像并创建 Candidate
-            if is_qualified:
-                # 如果这个简历之前已经被识别为候选人，先删除旧记录
+            if resume.is_qualified:
+                # 删除旧记录逻辑 (保持不变)
                 old_candidates = await Candidate.filter(resume_id=resume.id).all()
                 for old_cand in old_candidates:
-                    print(f"删除旧候选人记录: {old_cand.id}")
                     await old_cand.delete()
 
                 avatar_url = None
-                
-                # 如果 fitz 提取到了头像，上传到 MinIO
+                # 头像上传逻辑 (保持不变)
                 if avatar_data:
+                    # ... (原有的上传代码) ...
                     ext = avatar_data['ext']
-                    # 生成一个新的文件名，防止覆盖，例如: avatars/uuid.png
                     avatar_filename = f"avatars/{uuid.uuid4()}.{ext}"
                     content_type = f"image/{ext}"
-                    
-                    # 上传头像
-                    avatar_url = await MinioClient.upload_bytes(
-                        avatar_data['bytes'], 
-                        avatar_filename, 
-                        content_type
-                    )
-                    print(f"检测到头像并上传成功: {avatar_url}")
+                    avatar_url = await MinioClient.upload_bytes(avatar_data['bytes'], avatar_filename, content_type)
 
-                # 提取 LLM 解析出的候选人基本信息
-                # 注意：这里要跟 LLMClient 返回的结构对齐
-                cand_info = parse_result.get("candidate_info", {})
-                
-                # 创建候选人记录
+                # === 3. 创建 Candidate (这是你缺少的步骤) ===
+                # 【关键修复C】这里必须把 skills, experience 等详细数据存进去
                 await Candidate.create(
+                    # 基础信息
                     name=cand_info.get("name"),
                     phone=cand_info.get("phone"),
                     email=cand_info.get("email"),
-                    avatar_url=avatar_url, # 存入刚才上传的头像 URL
+                    avatar_url=avatar_url,
+
+                    # 核心能力 (新加的字段)
+                    university=get_edu_field("university"),
+                    major=get_edu_field("major"),
+                    graduation_time=get_edu_field("graduation_year"),
+                    skills=json_data.get("skills"),
+
+                    # 详细经历 (新加的字段)
+                    work_experience=json_data.get("work_experience"),
+                    project_experience=json_data.get("projects"),
+
                     resume=resume
                 )
-                print(">>> 合格候选人记录已创建")
+                print(">>> 合格候选人记录已创建 (包含完整详情)")
+
 
         except Exception as e:
             # 打印完整的错误堆栈，方便调试
