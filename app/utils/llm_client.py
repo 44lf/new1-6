@@ -10,6 +10,41 @@ client = AsyncOpenAI(
 
 class LLMClient:
     @staticmethod
+    def _extract_json(content: str) -> dict:
+        if not content:
+            raise ValueError("空响应内容，无法解析 JSON")
+
+        clean_content = content.replace("```json", "").replace("```", "").strip()
+        try:
+            return json.loads(clean_content)
+        except json.JSONDecodeError:
+            start = clean_content.find("{")
+            end = clean_content.rfind("}")
+            if start == -1 or end == -1 or start >= end:
+                raise
+            return json.loads(clean_content[start:end + 1])
+
+    @staticmethod
+    async def _call_llm(messages: list[dict], use_response_format: bool) -> str:
+        params = {
+            "model": LLM_MODEL_NAME,
+            "messages": messages,
+            "temperature": 0.1,
+        }
+
+        if use_response_format:
+            params["response_format"] = {"type": "json_object"}
+
+        response = await client.chat.completions.create(**params)
+        if not response.choices:
+            raise ValueError("LLM 未返回可用的候选结果")
+
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("LLM 返回内容为空")
+        return content
+
+    @staticmethod
     async def parse_resume(resume_content: str, criteria_content: str) -> dict:
         """
         调用大模型解析简历
@@ -51,6 +86,7 @@ class LLMClient:
             f"【候选人简历内容】：\n{resume_content}"
         )
 
+<<<<<<< ours
         try:
             response = await client.chat.completions.create(
                 model=LLM_MODEL_NAME,
@@ -80,6 +116,32 @@ class LLMClient:
             final_data = LLMClient._normalize_data_no_regex(parsed_data)
             return final_data
 
+=======
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_message},
+        ]
+
+        try:
+            try:
+                content = await LLMClient._call_llm(messages, use_response_format=True)
+            except Exception as e:
+                error_text = str(e)
+                if "response_format" in error_text or "Unrecognized request argument" in error_text:
+                    print("LLM 不支持 response_format，尝试降级调用")
+                    content = await LLMClient._call_llm(messages, use_response_format=False)
+                else:
+                    raise
+
+            return LLMClient._extract_json(content)
+        except json.JSONDecodeError:
+            print(f"JSON解析失败，原始返回: {content}")
+            return {
+                "is_qualified": False,
+                "candidate_info": {},
+                "json_data": {"reason": "模型返回格式错误"}
+            }
+>>>>>>> theirs
         except Exception as e:
             print(f"LLM 调用失败: {e}")
             return {
@@ -88,6 +150,7 @@ class LLMClient:
                 "json_data": {},
                 "candidate_info": {}
             }
+<<<<<<< ours
 
     @staticmethod
     def _extract_json_no_regex(text: str) -> dict:
@@ -159,3 +222,5 @@ class LLMClient:
             json_data["skills"] = []
 
         return data
+=======
+>>>>>>> theirs
