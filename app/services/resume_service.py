@@ -145,4 +145,5 @@ class ResumeService:
             
             resume.status = 4 # 4=Failed
             # 也可以把错误信息存个字段，方便前端展示
+            resume.reason = f'解析失败:{str(e)[:500]}'
             await resume.save()

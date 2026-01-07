@@ -1,16 +1,18 @@
 import os
+from dotenv import load_dotenv
 
-DB_URL='mysql://root:123456@127.0.0.1:3306/project1?charset=utf8mb4'
+load_dotenv()
+
+DB_URL = os.getenv('DB_URL')
+if not DB_URL:
+    raise ValueError('未配置DB_URL环境变量')
 
 TORTOISE_ORM = {
     "connections": {
-        # 这里直接引用上面的变量
         "default": DB_URL
     },
     "apps": {
         "models": {
-            # 告诉它去哪里找你写的 class Resume...
-            # 如果你的 models.py 和 settings.py 在同一级目录，这就写 ["models"]
             "models": [
                     "app.db.resume_table",
                     "app.db.prompt_table", 
@@ -31,6 +33,8 @@ MINIO_SECURE = False  # 如果是 https 设为 True
 
 
 # --- 大模型配置 (这里以 OpenAI 兼容接口为例，比如 DeepSeek 或 Moonshot) ---
-LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-effdfa994395427e8999e6f3c561c2e3")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com/v1") # 示例地址
-LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "deepseek-chat")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL") # 示例地址
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME")
+if not LLM_API_KEY:
+    raise ValueError("未配置 LLM_API_KEY")

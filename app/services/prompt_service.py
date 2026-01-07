@@ -1,6 +1,7 @@
 from app.db.prompt_table import Prompt
 from tortoise.transactions import in_transaction
 from typing import List, Optional
+from tortoise.expressions import Q
 
 class PromptService:
     @staticmethod
@@ -81,8 +82,9 @@ class PromptService:
     @staticmethod
     async def search_prompts(keyword: str) -> List[Prompt]:
         """根据关键词搜索提示词（名称或内容）"""
-        return await Prompt.filter(name__icontains=keyword) | await Prompt.filter(content__icontains=keyword) # type: ignore
-    
+        return await Prompt.filter(
+            Q(name__icontains=keyword) | Q(content__icontains=keyword) # type: ignore
+        )
     @staticmethod
     async def get_prompts_count() -> int:
         """获取提示词总数"""
