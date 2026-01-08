@@ -8,7 +8,8 @@ class Resume(models.Model):
 
     # 存 MinIO 返回的文件地址
     file_url = fields.CharField(max_length=255, description="简历文件URL")
-    
+    avatar_url = fields.CharField(max_length=255, null=True, description="头像URL")
+
     # 状态：0=未处理, 1=处理中, 2=合格, 3=不合格, 4=失败
     # 给个默认值 0
     status = fields.IntField(default=0, description="处理状态")

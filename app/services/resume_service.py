@@ -88,7 +88,7 @@ class ResumeService:
             resume.major = get_edu_field("major")
             resume.graduation_time = get_edu_field("graduation_year")
 
-            resume.skills = normalize_skills(json_data.get("skills"))
+            resume.skills = json_data.get("skills")
             resume.education_history = json_data.get("education_history")
 
             resume.status = 2 # Completed
@@ -122,7 +122,7 @@ class ResumeService:
                     degree=get_edu_field("degree"),
                     major=get_edu_field("major"),
                     graduation_time=get_edu_field("graduation_year"),
-                    skills=normalize_skills(json_data.get("skills")),
+                    skills=json_data.get("skills"),
                     work_experience=json_data.get("work_experience"),
                     project_experience=json_data.get("projects"),
                     resume=resume,
@@ -231,11 +231,3 @@ class ResumeService:
 
 
 
-def normalize_skills(skills: list[str]) -> str:
-    return ",".join(
-        sorted({
-            s.strip().lower()
-            for s in skills
-            if isinstance(s, str) and s.strip()
-        })
-    )
