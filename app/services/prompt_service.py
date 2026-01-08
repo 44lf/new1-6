@@ -43,9 +43,9 @@ class PromptService:
         return await Prompt.get_or_none(id=prompt_id, is_deleted=0)
     
     @staticmethod
-    async def get_all_prompts() -> List[Prompt]:
-        """获取所有提示词 (未删除的)"""
-        return await Prompt.filter(is_deleted=0).all()
+    async def get_all_prompts(offset: int = 0, limit: int = 20) -> List[Prompt]:
+        """获取所有提示词 (未删除的)，支持分页"""
+        return await Prompt.filter(is_deleted=0).offset(offset).limit(limit).all()
     
     @staticmethod
     async def update_prompt(prompt_id: int, name: Optional[str] = None, 
