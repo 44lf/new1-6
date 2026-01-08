@@ -174,7 +174,7 @@ class ResumeService:
             query = query.filter(major__icontains=major)
 
         if skill:
-            query = query.filter(skills__contains=skill)
+            query = query.filter(skills__contains=normalize_skill_query(skill))
 
         return await query.order_by("-created_at")
 
@@ -231,5 +231,6 @@ def normalize_skills_lower(skills: list[str]) -> list[str]:
     return [s.strip().lower() for s in skills if s and s.strip()]
 
 
-
+def normalize_skill_query(skill: str) -> str:
+    return skill.strip().lower()
 

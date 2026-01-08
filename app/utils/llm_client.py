@@ -16,12 +16,7 @@ client = AsyncOpenAI(
 class LLMClient:
     @staticmethod
     def _extract_json(content: str) -> dict:
-        """
-        兼容：
-        - 纯 JSON
-        - ```json ... ``` 包裹
-        - JSON 前后夹杂少量文本（截取最外层 {}）
-        """
+
         if not content:
             raise ValueError("空响应内容，无法解析 JSON")
 
@@ -73,26 +68,24 @@ class LLMClient:
         criteria_content: str,
         prompt_provider: BasePromptProvider  # <--- 核心改动：依赖注入
     ) -> dict:
-        """
-        现在这个方法不知道具体的 Prompt 是怎么构建的，它只负责调用 provider.build_messages
-        """
+
+        # 负责调用 provider.build_messages
+
         # 使用注入进来的 provider 生成消息
         messages = prompt_provider.build_messages(criteria_content, resume_content)
 
         content = ""
         try:
-            # ... 下面的调用逻辑保持不变 ...
             try:
                 content = await LLMClient._call_llm(messages, use_response_format=True)
             except Exception as e:
-                # ... 错误处理逻辑保持不变 ...
-                pass # (此处省略具体代码以节省篇幅)
+                pass
 
             parsed_data = LLMClient._extract_json(content)
             return LLMClient._normalize_data_no_regex(parsed_data)
 
         except Exception as e:
-            # ... 异常处理保持不变 ...
+
             return {"is_qualified": False, "error": str(e), "json_data": {}, "candidate_info": {}}
 
     @staticmethod
@@ -101,7 +94,7 @@ class LLMClient:
         data.setdefault("candidate_info", {})
         json_data = data.setdefault("json_data", {})
 
-        # --- 清洗毕业年份 ---
+        # 清洗毕业年份
         edu = json_data.get("education")
         if not isinstance(edu, dict):
             edu = {}
@@ -115,11 +108,11 @@ class LLMClient:
                 if year_candidate.startswith("19") or year_candidate.startswith("20"):
                     edu["graduation_year"] = year_candidate
 
-        # --- 补全学校层次 ---
+        # 补全学校层次
         if edu.get("schooltier") is None:
             edu["schooltier"] = infer_school_tier(edu.get("university"))
 
-        # --- 清洗技能列表 ---
+        # 清洗技能列表
         skills = json_data.get("skills")
         if isinstance(skills, str):
             normalized_str = (

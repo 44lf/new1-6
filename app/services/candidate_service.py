@@ -1,6 +1,8 @@
 from app.db.candidate_table import Candidate
 from tortoise.expressions import Q
 from typing import Optional
+from resume_service import normalize_skill_query
+
 
 class CandidateService:
     @staticmethod
@@ -40,7 +42,7 @@ class CandidateService:
             query = query.filter(major__icontains=major)
 
         if skill:
-            query = query.filter(skills__icontains=skill)
+            query = query.filter(skills__icontains=normalize_skill_query(skill))
 
         return await query.order_by("-created_at")
 
