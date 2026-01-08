@@ -15,11 +15,11 @@ class ResumePromptProvider(BasePromptProvider):
                     "degree": "学历",
                     "major": "专业",
                     "graduation_year": "2024",
+                    "education_history":"过往教育经历"
                 },
-                "education_history": [],
                 "skills": ["技能名1", "技能名2"],
-                "work_experience": [],
-                "projects": [],
+                "work_experience": ["工作经历1","工作经历2"],
+                "projects": ["项目1","项目2"],
                 "reason": "简短理由",
                 "score":"岗位匹配分数"
             },
@@ -47,10 +47,23 @@ class ResumePromptProvider(BasePromptProvider):
             "3. 禁止包含连接词或结构：与/及/和/以及/、/（用于拼接多个技能）。一个元素只能表达一个技能。\n"
             '示例：["sql","hadoop","etl","linux","shell","airflow","spark","flink","tableau","数据仓库","维度建模"]\n'
             "\n"
-            "【skliis 判定（非常重要）】\n"
+            "【score 判定 】\n"
             "1. score必须是整型数字，只允许输出0-100的整数，不允许输出非整数内容，不允许输出0-100以外的整数。\n"
             "2. 利用你的通用知识判断，这份简历与岗位的契合度，从0到100开始打分，契合度越高分数越高\n"
             "3. 不要编造简历中不存在的信息\n"
+            "\n"
+            "【工作经历 判定（重要） 】\n"
+            "1. work_experience 必须是字符串数组 string[]，只允许输出‘工作经历‘，不允许输出纯数字、简历不存在的信息。\n"
+            "2. 每个工作经历可以包含但不限于工作公司名称、工作时间、工作职位、工作内容\n"
+            "3. 不要编造简历中不存在的信息\n"
+            "\n"
+            "【项目经历 判定（重要） 】\n"
+            "1. projects 必须是字符串数组 string[]，只允许输出‘项目经历’，不允许输出纯数字、简历不存在的信息。\n"
+            "2. 每个项目经历可以包含但不限于项目名称、项目内容、项目时间、项目职责\n"
+            "3. 不要编造简历中不存在的信息\n"
+            
+            
+            
             "【输出 JSON 结构】\n"
             f"{json.dumps(schema, ensure_ascii=False, indent=2)}"
         )

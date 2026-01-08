@@ -130,6 +130,7 @@ class ResumeService:
                     work_experience=json_data.get("work_experience"),
                     project_experience=json_data.get("projects"),
                     resume=resume,
+                    parse_result=json_data,
                     is_deleted=0 # 显式设为0
                 )
                 print(">>> 合格候选人记录已创建")
