@@ -88,7 +88,7 @@ class ResumeService:
             resume.major = get_edu_field("major")
             resume.graduation_time = get_edu_field("graduation_year")
 
-            resume.skills = json_data.get("skills")
+            resume.skills = normalize_skills_lower(json_data.get("skills"))
             resume.education_history = json_data.get("education_history")
 
             resume.status = 2 # Completed
@@ -122,7 +122,7 @@ class ResumeService:
                     degree=get_edu_field("degree"),
                     major=get_edu_field("major"),
                     graduation_time=get_edu_field("graduation_year"),
-                    skills=json_data.get("skills"),
+                    skills=normalize_skills_lower(json_data.get("skills")),
                     work_experience=json_data.get("work_experience"),
                     project_experience=json_data.get("projects"),
                     resume=resume,
@@ -227,6 +227,8 @@ class ResumeService:
         return await Resume.filter(is_deleted=0).values_list("id", flat=True)
 
 
+def normalize_skills_lower(skills: list[str]) -> list[str]:
+    return [s.strip().lower() for s in skills if s and s.strip()]
 
 
 
