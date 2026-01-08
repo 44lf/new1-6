@@ -1,0 +1,202 @@
+﻿diff --git a/app/utils/llm_client.py b/app/utils/llm_client.py
+index ebaecedffe4098529fa8c3a29e86af7d03f3953b..bd93c099d671a9184c5e5a08769a86ff47490069 100644
+--- a/app/utils/llm_client.py
++++ b/app/utils/llm_client.py
+@@ -1,30 +1,31 @@
+ import json
+ from typing import Any, Dict,List
+ from app.prompts.base import BasePromptProvider
+ from openai import AsyncOpenAI  # type: ignore
+ from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
++from app.utils.school_tier import infer_school_tier
+ 
+ 
+ # 初始化异步客户端
+ client = AsyncOpenAI(
+     api_key=LLM_API_KEY,
+     base_url=LLM_BASE_URL,
+ )
+ 
+ 
+ class LLMClient:
+     @staticmethod
+     def _extract_json(content: str) -> dict:
+         """
+         兼容：
+         - 纯 JSON
+         - ```json ... ``` 包裹
+         - JSON 前后夹杂少量文本（截取最外层 {}）
+         """
+         if not content:
+             raise ValueError("空响应内容，无法解析 JSON")
+ 
+         clean_content = content.replace("```json", "").replace("```", "").strip()
+ 
+         # 1) 直接解析
+         try:
+@@ -92,42 +93,46 @@ class LLMClient:
+ 
+         except Exception as e:
+             # ... 异常处理保持不变 ...
+             return {"is_qualified": False, "error": str(e), "json_data": {}, "candidate_info": {}}
+ 
+     @staticmethod
+     def _normalize_data_no_regex(data: dict) -> dict:
+ 
+         data.setdefault("candidate_info", {})
+         json_data = data.setdefault("json_data", {})
+ 
+         # --- 清洗毕业年份 ---
+         edu = json_data.get("education")
+         if not isinstance(edu, dict):
+             edu = {}
+             json_data["education"] = edu
+ 
+         if "graduation_year" in edu and edu["graduation_year"] is not None:
+             raw_val = str(edu["graduation_year"])
+             digits = "".join([c for c in raw_val if c.isdigit()])
+             if len(digits) >= 4:
+                 year_candidate = digits[:4]
+                 if year_candidate.startswith("19") or year_candidate.startswith("20"):
+                     edu["graduation_year"] = year_candidate
+ 
++        # --- 补全学校层次 ---
++        if edu.get("schooltier") is None:
++            edu["schooltier"] = infer_school_tier(edu.get("university"))
++
+         # --- 清洗技能列表 ---
+         skills = json_data.get("skills")
+         if isinstance(skills, str):
+             normalized_str = (
+                 skills.replace("，", ",")
+                 .replace("、", ",")
+                 .replace("；", ",")
+                 .replace(";", ",")
+                 .replace("\n", ",")
+             )
+             json_data["skills"] = [s.strip() for s in normalized_str.split(",") if s.strip()]
+         elif isinstance(skills, list):
+             json_data["skills"] = [str(s).strip() for s in skills if str(s).strip()]
+         else:
+             json_data["skills"] = []
+ 
+         return data
+diff --git a/app/utils/school_tier.py b/app/utils/school_tier.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ad98b197c80c4e15fa30cc4404c4e537e13ad497
+--- /dev/null
++++ b/app/utils/school_tier.py
+@@ -0,0 +1,113 @@
++from __future__ import annotations
++
++from typing import Optional
++
++TIER_985_211 = {
++    "清华大学",
++    "北京大学",
++    "复旦大学",
++    "上海交通大学",
++    "浙江大学",
++    "南京大学",
++    "中国科学技术大学",
++    "哈尔滨工业大学",
++    "西安交通大学",
++    "北京航空航天大学",
++    "北京理工大学",
++    "中国人民大学",
++    "武汉大学",
++    "华中科技大学",
++    "中山大学",
++    "同济大学",
++    "天津大学",
++    "东南大学",
++    "南开大学",
++    "四川大学",
++    "厦门大学",
++}
++
++TIER_DOUBLE_FIRST_CLASS = {
++    "中国科学院大学",
++    "南方科技大学",
++    "上海科技大学",
++    "北京邮电大学",
++    "北京交通大学",
++    "南京航空航天大学",
++    "南京理工大学",
++    "西北工业大学",
++    "西北大学",
++    "电子科技大学",
++    "重庆大学",
++    "吉林大学",
++    "山东大学",
++    "中南大学",
++    "华东师范大学",
++    "华南理工大学",
++    "东北大学",
++    "华东理工大学",
++    "苏州大学",
++    "北京科技大学",
++}
++
++ALIAS_MAP = {
++    "清华": "清华大学",
++    "北大": "北京大学",
++    "复旦": "复旦大学",
++    "上交": "上海交通大学",
++    "上交大": "上海交通大学",
++    "浙大": "浙江大学",
++    "南大": "南京大学",
++    "中科大": "中国科学技术大学",
++    "哈工大": "哈尔滨工业大学",
++    "西交": "西安交通大学",
++    "北航": "北京航空航天大学",
++    "北理": "北京理工大学",
++    "人大": "中国人民大学",
++    "武大": "武汉大学",
++    "华科": "华中科技大学",
++    "中大": "中山大学",
++    "同济": "同济大学",
++    "天大": "天津大学",
++    "东大": "东南大学",
++    "南开": "南开大学",
++    "川大": "四川大学",
++    "厦大": "厦门大学",
++    "国科大": "中国科学院大学",
++}
++
++
++def _normalize_name(name: str) -> str:
++    return (
++        name.strip()
++        .replace(" ", "")
++        .replace("\u3000", "")
++        .replace("（", "(")
++        .replace("）", ")")
++    )
++
++
++def _canonical_name(university: str) -> str:
++    normalized = _normalize_name(university)
++    return ALIAS_MAP.get(normalized, normalized)
++
++
++def infer_school_tier(university: Optional[str]) -> Optional[str]:
++    if not university:
++        return None
++
++    name = _canonical_name(university)
++
++    if name in TIER_985_211:
++        return "985/211"
++
++    if name in TIER_DOUBLE_FIRST_CLASS:
++        return "双一流"
++
++    for canonical, full_name in ALIAS_MAP.items():
++        if canonical in name or full_name in name:
++            if full_name in TIER_985_211:
++                return "985/211"
++            if full_name in TIER_DOUBLE_FIRST_CLASS:
++                return "双一流"
++
++    return None
