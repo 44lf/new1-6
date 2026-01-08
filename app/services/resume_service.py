@@ -77,6 +77,7 @@ class ResumeService:
             resume.parse_result = json_data
             resume.reason = json_data.get("reason")
             resume.prompt = prompt_obj
+            resume.score = json_data.get('score')
 
             resume.name = cand_info.get("name")
             resume.phone = cand_info.get("phone")
@@ -113,6 +114,8 @@ class ResumeService:
                 # === 3. 创建 Candidate ===
                 await Candidate.create(
                     file_url=resume.file_url,
+                    prompt=prompt_obj,
+                    score=json_data.get('score'),
                     name=cand_info.get("name"),
                     phone=cand_info.get("phone"),
                     email=cand_info.get("email"),

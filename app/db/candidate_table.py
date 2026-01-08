@@ -5,6 +5,12 @@ class Candidate(models.Model):
     #系统状态，0=正常, 1=已删除
     is_deleted = fields.IntField(default=0, description="逻辑删除状态，0=正常, 1=已删除")
 
+    #关联岗位
+    prompt = fields.ForeignKeyField('models.Prompt', related_name=False, null=True, description="关联的岗位提示词")
+
+    #关联分数
+    score = fields.IntField(null=True, description='AI判断岗位契合度分数')
+
     #简历基础信息
     name = fields.CharField(max_length=50, null=True)
     phone = fields.CharField(max_length=20, null=True)

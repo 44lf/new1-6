@@ -21,6 +21,7 @@ class ResumePromptProvider(BasePromptProvider):
                 "work_experience": [],
                 "projects": [],
                 "reason": "简短理由",
+                "score":"岗位匹配分数"
             },
         }
 
@@ -46,6 +47,10 @@ class ResumePromptProvider(BasePromptProvider):
             "3. 禁止包含连接词或结构：与/及/和/以及/、/（用于拼接多个技能）。一个元素只能表达一个技能。\n"
             '示例：["sql","hadoop","etl","linux","shell","airflow","spark","flink","tableau","数据仓库","维度建模"]\n'
             "\n"
+            "【skliis 判定（非常重要）】\n"
+            "1. score必须是整型数字，只允许输出0-100的整数，不允许输出非整数内容，不允许输出0-100以外的整数。\n"
+            "2. 利用你的通用知识判断，这份简历与岗位的契合度，从0到100开始打分，契合度越高分数越高\n"
+            "3. 不要编造简历中不存在的信息\n"
             "【输出 JSON 结构】\n"
             f"{json.dumps(schema, ensure_ascii=False, indent=2)}"
         )

@@ -39,7 +39,11 @@ class Resume(models.Model):
     reason = fields.TextField(null=True, description="AI判断合格/不合格的理由")
 
     #关联岗位
-    prompt = fields.ForeignKeyField('models.Prompt', related_name='resumes', null=True, description="关联的岗位提示词")
+    prompt = fields.ForeignKeyField('models.Prompt', related_name=False, null=True, description="关联的岗位提示词")
+
+    #关联分数
+    score = fields.IntField(null=True, description='AI判断岗位契合度分数')
+
     # 记录上传时间，auto_now_add=True 表示创建时自动填当前时间
     created_at = fields.DatetimeField(auto_now_add=True)
 
