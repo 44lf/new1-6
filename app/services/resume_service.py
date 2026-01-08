@@ -113,7 +113,7 @@ class ResumeService:
 
                 # === 3. 创建 Candidate ===
                 await Candidate.create(
-                    file_bytes=file_bytes,
+                    file_url=resume.file_url,
                     name=cand_info.get("name"),
                     phone=cand_info.get("phone"),
                     email=cand_info.get("email"),
