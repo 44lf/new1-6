@@ -174,7 +174,7 @@ class ResumeService:
             query = query.filter(major__icontains=major)
 
         if skill:
-            query = query.filter(skills__contains=skill.lower())
+            query = query.filter(skills__contains=skill)
 
         return await query.order_by("-created_at")
 
