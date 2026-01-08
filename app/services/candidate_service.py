@@ -1,7 +1,7 @@
 from app.db.candidate_table import Candidate
 from tortoise.expressions import Q
 from typing import Optional
-from resume_service import normalize_skill_query
+from app.services.resume_service import normalize_skill_query
 
 
 class CandidateService:
