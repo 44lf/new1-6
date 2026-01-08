@@ -14,10 +14,10 @@ class CandidateService:
         skill: Optional[str] = None
     ):
         """
-        获取候选人列表（支持高级筛选）
+        获取候选人列表（过滤已删除）
         """
-        # 关联查询 resume
-        query = Candidate.all().prefetch_related("resume")
+        # 只查未删除的
+        query = Candidate.filter(is_deleted=0).prefetch_related("resume")
 
         # 1. 岗位筛选
         if prompt_id:
@@ -25,7 +25,6 @@ class CandidateService:
 
         # 2. 真实维度的模糊搜索
         if name:
-            # name__icontains 表示忽略大小写的模糊包含
             query = query.filter(name__icontains=name)
 
         if university:
@@ -40,9 +39,6 @@ class CandidateService:
         if major:
             query = query.filter(major__icontains=major)
 
-        # 3. 技能搜索
-        # 由于 skills 是 JSONField (存储为 ["Vue", "Python"])，
-        # 使用 icontains 可以匹配 JSON 字符串中的内容
         if skill:
             query = query.filter(skills__icontains=skill)
 
@@ -50,7 +46,8 @@ class CandidateService:
 
     @staticmethod
     async def update_candidate_info(candidate_id: int, update_data: dict):
-        candidate = await Candidate.get_or_none(id=candidate_id)
+        # 只能更新未删除的
+        candidate = await Candidate.get_or_none(id=candidate_id, is_deleted=0)
         if candidate:
             await candidate.update_from_dict(update_data)
             await candidate.save()
@@ -64,18 +61,14 @@ class CandidateService:
         phone: Optional[str] = None
     ) -> int:
         """
-        更加真实的删除功能：根据姓名、邮箱或电话删除
-        返回删除的记录数
+        逻辑删除候选人
         """
-        # 安全检查：防止未传参数导致误删全表
         if not any([name, email, phone]):
             return 0
 
-        query = Candidate.all()
+        # 查询未删除的
+        query = Candidate.filter(is_deleted=0)
 
-        # 删除操作建议稍微严格一点，防止手滑
-        # 但为了符合"真实操作"，这里支持通过姓名删除
-        # 如果提供了多个条件，是 AND 关系（必须同时满足）
         if name:
             query = query.filter(name=name)
         if email:
@@ -85,6 +78,7 @@ class CandidateService:
 
         count = await query.count()
         if count > 0:
-            await query.delete()
+            # 逻辑删除
+            await query.update(is_deleted=1)
 
         return count

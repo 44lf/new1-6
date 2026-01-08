@@ -6,51 +6,52 @@ from tortoise.expressions import Q
 class PromptService:
     @staticmethod
     async def get_active_prompt() -> Optional[Prompt]:
-        """获取当前启用的提示词"""
-        return await Prompt.get_or_none(is_active=True)
+        """获取当前启用的提示词 (必须未被删除)"""
+        return await Prompt.get_or_none(is_active=True, is_deleted=0)
 
     @staticmethod
     async def activate_prompt(prompt_id: int) -> bool:
         """
-        启用指定提示词，并自动禁用其他所有提示词（互斥逻辑）
-        使用事务确保数据一致性
+        启用指定提示词
         """
         async with in_transaction():
-            # 1. 把所有提示词设为 False
+            # 1. 只有未删除的才能被启用
+            prompt = await Prompt.get_or_none(id=prompt_id, is_deleted=0)
+            if not prompt:
+                return False
+
+            # 2. 把所有提示词设为 False (这里不需要过滤 is_deleted，全停即可，比较安全)
             await Prompt.all().update(is_active=False)
             
-            # 2. 把指定的设为 True
-            prompt = await Prompt.get_or_none(id=prompt_id)
-            if prompt:
-                prompt.is_active = True
-                await prompt.save()
-                return True
-            return False
+            # 3. 启用目标
+            prompt.is_active = True
+            await prompt.save()
+            return True
 
     @staticmethod
     async def create_prompt(name: str, content: str, is_active: bool = False) -> Prompt:
         """创建新提示词"""
         async with in_transaction():
-            # 如果新提示词要设为启用，先禁用所有其他提示词
             if is_active:
                 await Prompt.all().update(is_active=False)
+            # 默认 is_deleted=0
             return await Prompt.create(name=name, content=content, is_active=is_active)
     
     @staticmethod
     async def get_prompt_by_id(prompt_id: int) -> Optional[Prompt]:
         """根据ID获取提示词"""
-        return await Prompt.get_or_none(id=prompt_id)
+        return await Prompt.get_or_none(id=prompt_id, is_deleted=0)
     
     @staticmethod
     async def get_all_prompts() -> List[Prompt]:
-        """获取所有提示词"""
-        return await Prompt.all()
+        """获取所有提示词 (未删除的)"""
+        return await Prompt.filter(is_deleted=0).all()
     
     @staticmethod
     async def update_prompt(prompt_id: int, name: Optional[str] = None, 
                           content: Optional[str] = None) -> Optional[Prompt]:
         """更新提示词内容"""
-        prompt = await Prompt.get_or_none(id=prompt_id)
+        prompt = await Prompt.get_or_none(id=prompt_id, is_deleted=0)
         if not prompt:
             return None
         
@@ -64,14 +65,15 @@ class PromptService:
     
     @staticmethod
     async def delete_prompt(prompt_id: int) -> bool:
-        """删除提示词"""
-        prompt = await Prompt.get_or_none(id=prompt_id)
+        """逻辑删除提示词"""
+        prompt = await Prompt.get_or_none(id=prompt_id, is_deleted=0)
         if not prompt:
             return False
         
-        # 如果删除的是当前启用的提示词，可能需要特殊处理
-        # 这里简单删除，具体逻辑根据业务需求调整
-        await prompt.delete()
+        # 逻辑删除：标记为 1，并自动禁用
+        prompt.is_deleted = 1
+        prompt.is_active = False 
+        await prompt.save()
         return True
     
     @staticmethod
@@ -81,11 +83,12 @@ class PromptService:
     
     @staticmethod
     async def search_prompts(keyword: str) -> List[Prompt]:
-        """根据关键词搜索提示词（名称或内容）"""
+        """根据关键词搜索提示词"""
         return await Prompt.filter(
-            Q(name__icontains=keyword) | Q(content__icontains=keyword) # type: ignore
+            Q(name__icontains=keyword) | Q(content__icontains=keyword),
+            is_deleted=0
         )
     @staticmethod
     async def get_prompts_count() -> int:
-        """获取提示词总数"""
-        return await Prompt.all().count()
+        """获取有效提示词总数"""
+        return await Prompt.filter(is_deleted=0).count()

@@ -12,8 +12,10 @@ class Prompt(models.Model):
     # 是否启用。逻辑上我们只允许一个是 True，其他的都是 False
     is_active = fields.BooleanField(default=False)
     
+    # 新增：逻辑删除状态
+    is_deleted = fields.IntField(default=0, description="逻辑删除状态，0=正常, 1=已删除")
+    
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
         table = "prompts"
-

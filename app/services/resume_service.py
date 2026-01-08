@@ -25,10 +25,10 @@ class ResumeService:
         """
         print(f"Service: 开始处理简历 {resume_id}")
 
-        # 1. 获取简历记录
-        resume = await Resume.get_or_none(id=resume_id)
+        # 1. 获取简历记录 (过滤已删除的)
+        resume = await Resume.get_or_none(id=resume_id, is_deleted=0)
         if not resume:
-            print(f"Service: 未找到简历ID {resume_id}")
+            print(f"Service: 未找到有效简历ID {resume_id}")
             return
 
         # 更新状态为处理中 (1=Processing)
@@ -41,7 +41,7 @@ class ResumeService:
             if not prompt_obj:
                 raise Exception("系统未配置启用的提示词 (Prompt)，无法解析")
 
-            # 3. 从 MinIO 下载二进制文件
+            # 3. 从 MinIO 下载
             if f"/{MINIO_BUCKET_NAME}/" in resume.file_url:
                 object_name = resume.file_url.split(f"/{MINIO_BUCKET_NAME}/")[-1]
             else:
@@ -52,19 +52,15 @@ class ResumeService:
             if not file_bytes:
                 raise Exception("文件下载失败或文件内容为空")
 
-            # 4. 使用 fitz (PyMuPDF) 解析 PDF
+            # 4. 解析 PDF
             text_content, avatar_data = PdfParser.parse_pdf(file_bytes)
-
-            print(f"DEBUG - 提取到的文本内容 (前200字): {text_content[:200]}")
 
             if not text_content or len(text_content.strip()) < 10:
                 raise Exception("无法从PDF中提取有效文本，请确认简历不是纯图片扫描件")
 
-            # 5. 调用 LLM 进行分析
+            # 5. 调用 LLM
             print("正在调用 LLM 进行解析...")
             parse_result = await LLMClient.parse_resume(text_content, prompt_obj.content)
-
-            print(f"DEBUG - LLM 解析结果: {json.dumps(parse_result, ensure_ascii=False)}")
 
             # === 1. 提取数据 ===
             json_data = parse_result.get("json_data", {})
@@ -79,7 +75,6 @@ class ResumeService:
             resume.reason = json_data.get("reason")
             resume.prompt = prompt_obj
 
-            # 基础信息回写
             resume.name = cand_info.get("name")
             resume.phone = cand_info.get("phone")
             resume.email = cand_info.get("email")
@@ -99,10 +94,11 @@ class ResumeService:
 
             # 6. 如果是合格候选人，处理头像并创建 Candidate
             if resume.is_qualified:
-                # 删除旧记录
-                old_candidates = await Candidate.filter(resume_id=resume.id).all()
+                # 逻辑删除旧记录 (同一份简历重新解析时，旧的候选人数据逻辑删除)
+                old_candidates = await Candidate.filter(resume_id=resume.id, is_deleted=0).all()
                 for old_cand in old_candidates:
-                    await old_cand.delete()
+                    old_cand.is_deleted = 1
+                    await old_cand.save()
 
                 avatar_url = None
                 if avatar_data:
@@ -126,9 +122,10 @@ class ResumeService:
                     skills=json_data.get("skills"),
                     work_experience=json_data.get("work_experience"),
                     project_experience=json_data.get("projects"),
-                    resume=resume
+                    resume=resume,
+                    is_deleted=0 # 显式设为0
                 )
-                print(">>> 合格候选人记录已创建 (包含完整详情)")
+                print(">>> 合格候选人记录已创建")
 
         except Exception as e:
             traceback.print_exc()
@@ -148,8 +145,9 @@ class ResumeService:
         major: Optional[str] = None,
         skill: Optional[str] = None
     ):
-        """多维度简历搜索"""
-        query = Resume.all()
+        """多维度简历搜索 (过滤已删除)"""
+        # 只查询 is_deleted=0 的
+        query = Resume.filter(is_deleted=0)
 
         if status is not None:
             query = query.filter(status=status)
@@ -183,11 +181,12 @@ class ResumeService:
         email: Optional[str] = None,
         phone: Optional[str] = None
     ) -> int:
-        """按自然信息删除简历"""
+        """按自然信息逻辑删除简历"""
         if not any([name, email, phone]):
             return 0
 
-        query = Resume.all()
+        # 只操作未删除的
+        query = Resume.filter(is_deleted=0)
 
         if name:
             query = query.filter(name=name)
@@ -198,32 +197,28 @@ class ResumeService:
 
         count = await query.count()
         if count > 0:
-            await query.delete()
+            # 逻辑删除：更新状态为 1
+            await query.update(is_deleted=1)
 
         return count
 
     @staticmethod
     async def batch_reanalyze_resumes(resume_ids: List[int]):
-        """批量重新解析简历（后台任务）"""
+        """批量重新解析简历"""
         print(f"Service: 开始执行批量重测任务，共 {len(resume_ids)} 条...")
-
         success_count = 0
         fail_count = 0
-
         for rid in resume_ids:
             try:
-                # 调用单条处理逻辑
                 await ResumeService.process_resume_workflow(rid)
                 success_count += 1
-                # 简单流控
                 await asyncio.sleep(1)
             except Exception as e:
                 print(f"批量任务中 ID {rid} 处理失败: {e}")
                 fail_count += 1
-
         print(f"Service: 批量重测结束。成功 {success_count}，失败 {fail_count}")
 
     @staticmethod
     async def get_all_resume_ids() -> List[int]:
-        """获取所有简历ID"""
-        return await Resume.all().values_list("id", flat=True)
+        """获取所有有效简历ID"""
+        return await Resume.filter(is_deleted=0).values_list("id", flat=True)
