@@ -68,7 +68,10 @@ async def resume_analyze(
     return {"code": 200, "message": "已将简历重新加入解析队列"}
 
 @router.post("/reanalyze/all", summary="一键重新筛选所有简历")
-async def reanalyze_all_resumes(background_tasks: BackgroundTasks):
+async def reanalyze_all_resumes(
+    background_tasks: BackgroundTasks,
+    prompt_provider: BasePromptProvider = Depends(get_prompt_provider) # 1. 注入依赖
+):
     """
     **全量重新筛选**：
     当更换了 Prompt 后，点击此按钮。
@@ -79,7 +82,7 @@ async def reanalyze_all_resumes(background_tasks: BackgroundTasks):
     if not all_ids:
         return {"code": 200, "message": "当前简历库为空，无需重测"}
 
-    background_tasks.add_task(ResumeService.batch_reanalyze_resumes, all_ids)
+    background_tasks.add_task(ResumeService.batch_reanalyze_resumes, all_ids,prompt_provider)
 
     return {
         "code": 200,

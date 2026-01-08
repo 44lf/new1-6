@@ -206,14 +206,14 @@ class ResumeService:
         return count
 
     @staticmethod
-    async def batch_reanalyze_resumes(resume_ids: List[int]):
+    async def batch_reanalyze_resumes(resume_ids: List[int],prompt_provider: BasePromptProvider):
         """批量重新解析简历"""
         print(f"Service: 开始执行批量重测任务，共 {len(resume_ids)} 条...")
         success_count = 0
         fail_count = 0
         for rid in resume_ids:
             try:
-                await ResumeService.process_resume_workflow(rid)
+                await ResumeService.process_resume_workflow(rid,prompt_provider)
                 success_count += 1
                 await asyncio.sleep(1)
             except Exception as e:
