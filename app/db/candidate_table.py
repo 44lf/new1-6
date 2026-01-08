@@ -37,7 +37,9 @@ class Candidate(models.Model):
     project_experience = fields.JSONField(null=True, description="项目经验列表")
 
     resume = fields.ForeignKeyField('models.Resume', related_name='candidate')
-    
+
+    parse_result = fields.JSONField(null=True, description="AI解析结果")
+
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
