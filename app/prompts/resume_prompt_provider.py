@@ -38,7 +38,7 @@ class ResumePromptProvider(BasePromptProvider):
             "【schooltier 判定（非常重要）】\n"
             "A. 仅依据“最终学历对应的毕业院校”判断：最高学历为本科→看本科院校；硕士/博士→看硕/博院校。\n"
             "B. schooltier 只能取以下之一：\"985/211\"、\"双一流\"、\"普通本科\"、\"专科\"、null。\n"
-            "C. 若无法从简历文本中明确判断院校层次，必须输出 null（不允许猜测）。\n"
+            "C. 请根据提取到的毕业院校名称，利用你的通用知识判断该校是否属于“985/211”或“双一流”。若确实无法判定，才输出 null。\n"
             "\n"
             "【输出 JSON 结构】\n"
             f"{json.dumps(schema, ensure_ascii=False, indent=2)}"
