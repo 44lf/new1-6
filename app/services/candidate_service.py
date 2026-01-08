@@ -1,7 +1,7 @@
-from app.db.candidate_table import Candidate
-from tortoise.expressions import Q
 from typing import Optional
-from app.services.resume_service import normalize_skill_query
+from tortoise.expressions import Q
+from app.db.candidate_table import Candidate
+from app.services.resume_service import normalize_text_value, parse_skill_terms
 
 
 class CandidateService:
@@ -18,33 +18,38 @@ class CandidateService:
         """
         获取候选人列表（过滤已删除）
         """
-        # 只查未删除的
-        query = Candidate.filter(is_deleted=0).prefetch_related("resume")
+        filters = Q(is_deleted=0)
+        normalized_name = normalize_text_value(name)
+        normalized_university = normalize_text_value(university)
+        normalized_schooltier = normalize_text_value(schooltier)
+        normalized_degree = normalize_text_value(degree)
+        normalized_major = normalize_text_value(major)
+        skill_terms = parse_skill_terms(skill)
 
         # 1. 岗位筛选
         if prompt_id:
-            query = query.filter(resume__prompt_id=prompt_id)
+            filters &= Q(resume__prompt_id=prompt_id)
 
         # 2. 真实维度的模糊搜索
-        if name:
-            query = query.filter(name__icontains=name)
+        if normalized_name:
+            filters &= Q(name__icontains=normalized_name)
 
-        if university:
-            query = query.filter(university__icontains=university)
+        if normalized_university:
+            filters &= Q(university__icontains=normalized_university)
         
-        if schooltier:
-            query = query.filter(schooltier__icontains=schooltier)
+        if normalized_schooltier:
+            filters &= Q(schooltier__icontains=normalized_schooltier)
         
-        if degree:
-            query = query.filter(degree__icontains=degree)
+        if normalized_degree:
+            filters &= Q(degree__icontains=normalized_degree)
 
-        if major:
-            query = query.filter(major__icontains=major)
+        if normalized_major:
+            filters &= Q(major__icontains=normalized_major)
 
-        if skill:
-            query = query.filter(skills__icontains=normalize_skill_query(skill))
+        for term in skill_terms:
+            filters &= Q(skills__contains=term)
 
-        return await query.order_by("-created_at")
+        return await Candidate.filter(filters).prefetch_related("resume").order_by("-created_at")
 
     @staticmethod
     async def update_candidate_info(candidate_id: int, update_data: dict):
