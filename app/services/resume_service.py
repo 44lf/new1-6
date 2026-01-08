@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 import traceback
 import uuid
 from typing import List, Optional
@@ -176,17 +175,38 @@ class ResumeService:
 
         if normalized_schooltier:
             filters &= Q(schooltier__icontains=normalized_schooltier)
-        
+
         if normalized_degree:
             filters &= Q(degree__icontains=normalized_degree)
 
         if normalized_major:
             filters &= Q(major__icontains=normalized_major)
 
-        for term in skill_terms:
-            filters &= Q(skills__contains=term)
+        # 技能查询优化 - 先查询后过滤
+        query = Resume.filter(filters)
 
-        return await Resume.filter(filters).order_by("-created_at")
+        if skill_terms:
+            # 获取所有符合前置条件的简历
+            all_resumes = await query.all()
+
+            # Python层面过滤技能
+            filtered_resumes = []
+            for resume in all_resumes:
+                if not resume.skills:
+                    continue
+
+                # 将简历的技能列表转为小写
+                resume_skills_lower = [s.lower() if isinstance(s, str) else str(s).lower()
+                                      for s in resume.skills]
+
+                # 检查是否所有搜索技能都在简历技能中
+                if all(term.lower() in resume_skills_lower for term in skill_terms):
+                    filtered_resumes.append(resume)
+
+            return filtered_resumes
+        else:
+            # 没有技能过滤,直接返回
+            return await query.order_by("-created_at")
 
     @staticmethod
     async def delete_resumes_by_info(
@@ -237,15 +257,22 @@ class ResumeService:
         return await Resume.filter(is_deleted=0).values_list("id", flat=True)
 
 
+# ============ 工具函数 (不使用正则表达式) ============
+
 def normalize_skills_lower(skills: list[str]) -> list[str]:
+    """标准化技能列表为小写"""
+    if not skills:
+        return []
     return [s.strip().lower() for s in skills if s and s.strip()]
 
 
 def normalize_skill_query(skill: str) -> str:
+    """将技能查询词标准化为小写"""
     return skill.strip().lower()
 
 
 def normalize_text_value(value: Optional[str]) -> Optional[str]:
+    """标准化文本值"""
     if value is None:
         return None
     normalized = value.strip()
@@ -253,7 +280,35 @@ def normalize_text_value(value: Optional[str]) -> Optional[str]:
 
 
 def parse_skill_terms(skill: Optional[str]) -> list[str]:
+    """
+    解析技能搜索字符串，不使用正则表达式
+    支持: 逗号、空格、中文逗号、顿号分隔
+    示例:
+        "Python,Vue" -> ["python", "vue"]
+        "Python Vue Django" -> ["python", "vue", "django"]
+        "Python，Vue、React" -> ["python", "vue", "react"]
+    """
     if not skill:
         return []
-    tokens = re.split(r"[,\s]+", skill.strip())
-    return [normalize_skill_query(token) for token in tokens if token.strip()]
+
+    # 1. 统一分隔符：将中文逗号和顿号替换为英文逗号
+    normalized = skill.strip().replace('，', ',').replace('、', ',')
+
+    # 2. 先按逗号分割
+    comma_parts = normalized.split(',')
+
+    # 3. 再按空格分割每个部分
+    tokens = []
+    for part in comma_parts:
+        # 按空格分割
+        space_parts = part.split()
+        tokens.extend(space_parts)
+
+    # 4. 清理并转小写
+    result = []
+    for token in tokens:
+        cleaned = token.strip()
+        if cleaned:
+            result.append(normalize_skill_query(cleaned))
+
+    return result
