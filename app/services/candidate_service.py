@@ -8,6 +8,8 @@ class CandidateService:
         prompt_id: Optional[int] = None,
         name: Optional[str] = None,
         university: Optional[str] = None,
+        schooltier: Optional[str] = None,
+        degree: Optional[str] = None,
         major: Optional[str] = None,
         skill: Optional[str] = None
     ):
@@ -28,6 +30,12 @@ class CandidateService:
 
         if university:
             query = query.filter(university__icontains=university)
+        
+        if schooltier:
+            query = query.filter(schooltier__icontains=schooltier)
+        
+        if degree:
+            query = query.filter(degree__icontains=degree)
 
         if major:
             query = query.filter(major__icontains=major)

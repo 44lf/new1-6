@@ -74,7 +74,7 @@ class LLMClient:
             "is_qualified": "Boolean, true表示符合硬性要求",
             "candidate_info": {"name": "姓名", "phone": "电话", "email": "邮箱"},
             "json_data": {
-                "education": {"university": "学校", "major": "专业", "graduation_year": "2024"},
+                "education": {"university": "学校", "schooltier": "学校层次", "degree": "学历", "major": "专业", "graduation_year": "2024"},
                 "education_history": [],
                 "skills": ["技能1", "技能2"],
                 "work_experience": [],
