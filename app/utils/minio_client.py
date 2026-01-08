@@ -93,7 +93,6 @@ class MinioClient:
     # 顺便加一个上传 bytes 的方法，用于上传提取出来的头像
     @classmethod
     async def upload_bytes(cls, data: bytes, object_name: str, content_type: str) -> str:
-        """直接上传内存中的 bytes 数据"""
         data_stream = io.BytesIO(data)
         data_len = len(data)
         
