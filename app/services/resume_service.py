@@ -1,8 +1,9 @@
-import uuid
-import traceback
 import asyncio
 import json
-from typing import Optional, List
+import re
+import traceback
+import uuid
+from typing import List, Optional
 from tortoise.expressions import Q
 from app.db.resume_table import Resume
 from app.db.candidate_table import Candidate
@@ -152,34 +153,39 @@ class ResumeService:
         skill: Optional[str] = None
     ):
         """多维度简历搜索 (过滤已删除)"""
-        # 只查询 is_deleted=0 的
-        query = Resume.filter(is_deleted=0)
+        filters = Q(is_deleted=0)
+        normalized_name = normalize_text_value(name)
+        normalized_university = normalize_text_value(university)
+        normalized_schooltier = normalize_text_value(schooltier)
+        normalized_degree = normalize_text_value(degree)
+        normalized_major = normalize_text_value(major)
+        skill_terms = parse_skill_terms(skill)
 
         if status is not None:
-            query = query.filter(status=status)
+            filters &= Q(status=status)
 
         if is_qualified is not None:
-            query = query.filter(is_qualified=is_qualified)
+            filters &= Q(is_qualified=is_qualified)
 
-        if name:
-            query = query.filter(name__icontains=name)
+        if normalized_name:
+            filters &= Q(name__icontains=normalized_name)
 
-        if university:
-            query = query.filter(university__icontains=university)
+        if normalized_university:
+            filters &= Q(university__icontains=normalized_university)
 
-        if schooltier:
-            query = query.filter(schooltier__icontains=schooltier)
+        if normalized_schooltier:
+            filters &= Q(schooltier__icontains=normalized_schooltier)
         
-        if degree:
-            query = query.filter(degree__icontains=degree)
+        if normalized_degree:
+            filters &= Q(degree__icontains=normalized_degree)
 
-        if major:
-            query = query.filter(major__icontains=major)
+        if normalized_major:
+            filters &= Q(major__icontains=normalized_major)
 
-        if skill:
-            query = query.filter(skills__contains=normalize_skill_query(skill))
+        for term in skill_terms:
+            filters &= Q(skills__contains=term)
 
-        return await query.order_by("-created_at")
+        return await Resume.filter(filters).order_by("-created_at")
 
     @staticmethod
     async def delete_resumes_by_info(
@@ -237,3 +243,16 @@ def normalize_skills_lower(skills: list[str]) -> list[str]:
 def normalize_skill_query(skill: str) -> str:
     return skill.strip().lower()
 
+
+def normalize_text_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def parse_skill_terms(skill: Optional[str]) -> list[str]:
+    if not skill:
+        return []
+    tokens = re.split(r"[,\s]+", skill.strip())
+    return [normalize_skill_query(token) for token in tokens if token.strip()]
