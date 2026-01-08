@@ -1,19 +1,25 @@
 import uuid
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Query,Depends
 from typing import Optional
 
 from app.services.resume_service import ResumeService
 from app.utils.minio_client import MinioClient
 from app.db.resume_table import Resume
+from app.prompts.base import BasePromptProvider
+from app.prompts.resume_prompt_provider import ResumePromptProvider
 
 router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
+def get_prompt_provider() -> BasePromptProvider:
+    return ResumePromptProvider()
 
 @router.post("/upload", summary="上传简历PDF")
 async def upload_resume(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    prompt_provider: BasePromptProvider = Depends(get_prompt_provider)
 ):
+
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="目前仅支持 PDF 文件上传")
 
@@ -30,7 +36,8 @@ async def upload_resume(
 
     background_tasks.add_task(
         ResumeService.process_resume_workflow,
-        resume.id
+        resume.id,
+        prompt_provider
     )
 
     return {
@@ -45,7 +52,8 @@ async def upload_resume(
 @router.post("/{resume_id}/analyze", summary="重新分析单份简历")
 async def resume_analyze(
     resume_id: int,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    prompt_provider: BasePromptProvider = Depends(get_prompt_provider)
 ):
     resume = await Resume.get_or_none(id=resume_id)
     if not resume:
@@ -53,7 +61,8 @@ async def resume_analyze(
 
     background_tasks.add_task(
         ResumeService.process_resume_workflow,
-        resume.id
+        resume.id,
+        prompt_provider
     )
 
     return {"code": 200, "message": "已将简历重新加入解析队列"}

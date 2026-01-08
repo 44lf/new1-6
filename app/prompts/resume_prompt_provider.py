@@ -1,10 +1,10 @@
 # app/prompts/resume_prompt_provider.py
 import json
 from typing import Any, Dict, List
+from .base import BasePromptProvider  # 导入刚才定义的基类
 
-class ResumePromptProvider:
-    @staticmethod
-    def json_structure() -> Dict[str, Any]:
+class ResumePromptProvider(BasePromptProvider):
+    def get_json_structure(self) -> Dict[str, Any]:
         return {
             "is_qualified": "Boolean, true表示符合硬性要求",
             "candidate_info": {"name": "姓名", "phone": "电话", "email": "邮箱"},
@@ -24,8 +24,9 @@ class ResumePromptProvider:
             },
         }
 
-    @staticmethod
-    def system_instruction(json_structure: Dict[str, Any]) -> str:
+    def _system_instruction(self) -> str:
+        # 这是一个内部辅助方法
+        schema = self.get_json_structure()
         return (
             "你是一个专业的招聘助手，负责根据筛选标准解析简历并输出结构化结果。\n"
             "【输出要求】\n"
@@ -40,21 +41,19 @@ class ResumePromptProvider:
             "C. 若无法从简历文本中明确判断院校层次，必须输出 null（不允许猜测）。\n"
             "\n"
             "【输出 JSON 结构】\n"
-            f"{json.dumps(json_structure, ensure_ascii=False, indent=2)}"
+            f"{json.dumps(schema, ensure_ascii=False, indent=2)}"
         )
 
-    @staticmethod
-    def user_message(criteria_content: str, resume_content: str) -> str:
+    def _user_message(self, criteria_content: str, resume_content: str) -> str:
         return (
             f"【岗位筛选标准】：\n{criteria_content}\n\n"
             f"------------------\n"
             f"【候选人简历内容】：\n{resume_content}"
         )
 
-    @classmethod
-    def build_messages(cls, criteria_content: str, resume_content: str) -> List[dict]:
-        schema = cls.json_structure()
+    def build_messages(self, criteria_content: str, resume_content: str) -> List[dict]:
+        # 实现接口方法
         return [
-            {"role": "system", "content": cls.system_instruction(schema)},
-            {"role": "user", "content": cls.user_message(criteria_content, resume_content)},
+            {"role": "system", "content": self._system_instruction()},
+            {"role": "user", "content": self._user_message(criteria_content, resume_content)},
         ]

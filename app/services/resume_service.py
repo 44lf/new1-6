@@ -11,6 +11,7 @@ from app.utils.minio_client import MinioClient
 from app.utils.llm_client import LLMClient
 from app.utils.pdf_parser import PdfParser
 from app.settings import MINIO_BUCKET_NAME
+from app.prompts.base import BasePromptProvider
 
 class ResumeService:
     @staticmethod
@@ -19,7 +20,7 @@ class ResumeService:
         return await Resume.create(file_url=file_url, status=0)
 
     @staticmethod
-    async def process_resume_workflow(resume_id: int):
+    async def process_resume_workflow(resume_id: int,prompt_provider: BasePromptProvider):
         """
         【核心业务逻辑】后台异步执行的任务：PDF解析 + LLM判断 + 结果回写
         """
@@ -60,7 +61,9 @@ class ResumeService:
 
             # 5. 调用 LLM
             print("正在调用 LLM 进行解析...")
-            parse_result = await LLMClient.parse_resume(text_content, prompt_obj.content)
+            parse_result = await LLMClient.parse_resume(resume_content=text_content,
+                criteria_content=prompt_obj.content,
+                prompt_provider=prompt_provider)
 
             # === 1. 提取数据 ===
             json_data = parse_result.get("json_data", {})
