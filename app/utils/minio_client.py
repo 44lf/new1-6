@@ -64,10 +64,12 @@ class MinioClient:
         """
         def _get():
             try:
+                response = None
                 response = cls.client.get_object(MINIO_BUCKET_NAME, object_name)
                 return response.read().decode('utf-8')
             finally:
-                response.close()
+                if response:
+                    response.close()
                 
         return await asyncio.to_thread(_get)
     @classmethod

@@ -83,7 +83,7 @@ class ResumeService:
             resume.email = cand_info.get("email")
 
             resume.university = get_edu_field("university")
-            resume.schooltier = get_edu_field("school_tier")
+            resume.schooltier = get_edu_field("schooltier")
             resume.degree = get_edu_field("degree")
             resume.major = get_edu_field("major")
             resume.graduation_time = get_edu_field("graduation_year")
@@ -118,7 +118,7 @@ class ResumeService:
                     email=cand_info.get("email"),
                     avatar_url=avatar_url,
                     university=get_edu_field("university"),
-                    schooltier=get_edu_field("school_tier"),
+                    schooltier=get_edu_field("schooltier"),
                     degree=get_edu_field("degree"),
                     major=get_edu_field("major"),
                     graduation_time=get_edu_field("graduation_year"),
