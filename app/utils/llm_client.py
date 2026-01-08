@@ -3,6 +3,7 @@ from typing import Any, Dict,List
 from app.prompts.base import BasePromptProvider
 from openai import AsyncOpenAI  # type: ignore
 from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
+from app.utils.school_tier import infer_school_tier
 
 
 # 初始化异步客户端
@@ -113,6 +114,10 @@ class LLMClient:
                 year_candidate = digits[:4]
                 if year_candidate.startswith("19") or year_candidate.startswith("20"):
                     edu["graduation_year"] = year_candidate
+
+        # --- 补全学校层次 ---
+        if edu.get("schooltier") is None:
+            edu["schooltier"] = infer_school_tier(edu.get("university"))
 
         # --- 清洗技能列表 ---
         skills = json_data.get("skills")
