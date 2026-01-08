@@ -88,7 +88,9 @@ class LLMClient:
             "【输出要求】\n"
             "1. 必须返回合法的 JSON 字符串。\n"
             "2. 不要包含 Markdown 标记（如 ```json），不要有任何解释文字。\n"
-            "3. 缺失字段填 null。\n"
+            "3. 学校层次依据最终学历学校填写，如本科毕业于清华，则 schooltier 填写“985/211。\n"
+            "4. 除学校层次外的缺失字段填 null。\n"
+            '5. 输出格式必须严格遵循以下 JSON 结构：\n'
             f"{json.dumps(json_structure, ensure_ascii=False, indent=2)}"
         )
 
