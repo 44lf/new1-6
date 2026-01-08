@@ -1,8 +1,9 @@
 import json
-from typing import Any
+from typing import Any, Dict,List
 
 from openai import AsyncOpenAI  # type: ignore
 from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
+
 
 # 初始化异步客户端
 client = AsyncOpenAI(
@@ -46,8 +47,8 @@ class LLMClient:
         return obj
 
     @staticmethod
-    async def _call_llm(messages: list[dict], use_response_format: bool) -> str:
-        params: dict[str, Any] = {
+    async def _call_llm(messages: list[Dict[str, Any]], use_response_format: bool) -> str:
+        params: Dict[str, Any] = {
             "model": LLM_MODEL_NAME,
             "messages": messages,
             "temperature": 0.1,
@@ -67,43 +68,8 @@ class LLMClient:
 
     @staticmethod
     async def parse_resume(resume_content: str, criteria_content: str) -> dict:
-        """
-        调用大模型解析简历
-        """
-        json_structure = {
-            "is_qualified": "Boolean, true表示符合硬性要求",
-            "candidate_info": {"name": "姓名", "phone": "电话", "email": "邮箱"},
-            "json_data": {
-                "education": {"university": "学校", "schooltier": "学校层次", "degree": "学历", "major": "专业", "graduation_year": "2024"},
-                "education_history": [],
-                "skills": ["技能1", "技能2"],
-                "work_experience": [],
-                "projects": [],
-                "reason": "简短理由",
-            },
-        }
-
-        system_instruction = (
-            "你是一个专业的招聘助手。请根据筛选标准分析简历。\n"
-            "【输出要求】\n"
-            "1. 必须返回合法的 JSON 字符串。\n"
-            "2. 不要包含 Markdown 标记（如 ```json），不要有任何解释文字。\n"
-            "3. 学校层次依据最终学历学校填写，如本科毕业于清华，则 schooltier 填写“985/211。\n"
-            "4. 除学校层次外的缺失字段填 null。\n"
-            '5. 输出格式必须严格遵循以下 JSON 结构：\n'
-            f"{json.dumps(json_structure, ensure_ascii=False, indent=2)}"
-        )
-
-        user_message = (
-            f"【岗位筛选标准】：\n{criteria_content}\n\n"
-            f"------------------\n"
-            f"【候选人简历内容】：\n{resume_content}"
-        )
-
-        messages = [
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": user_message},
-        ]
+        from app.prompts.resume_prompt_provider import ResumePromptProvider
+        messages = ResumePromptProvider.build_messages(criteria_content, resume_content)
 
         content = ""
         try:
