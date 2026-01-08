@@ -88,7 +88,7 @@ class ResumeService:
             resume.major = get_edu_field("major")
             resume.graduation_time = get_edu_field("graduation_year")
 
-            resume.skills = json_data.get("skills")
+            resume.skills = normalize_skills(json_data.get("skills"))
             resume.education_history = json_data.get("education_history")
 
             resume.status = 2 # Completed
@@ -122,7 +122,7 @@ class ResumeService:
                     degree=get_edu_field("degree"),
                     major=get_edu_field("major"),
                     graduation_time=get_edu_field("graduation_year"),
-                    skills=json_data.get("skills"),
+                    skills=normalize_skills(json_data.get("skills")),
                     work_experience=json_data.get("work_experience"),
                     project_experience=json_data.get("projects"),
                     resume=resume,
@@ -174,7 +174,7 @@ class ResumeService:
             query = query.filter(major__icontains=major)
 
         if skill:
-            query = query.filter(skills__icontains=skill)
+            query = query.filter(skills__contains=skill.lower())
 
         return await query.order_by("-created_at")
 
@@ -225,3 +225,17 @@ class ResumeService:
     async def get_all_resume_ids() -> List[int]:
         """获取所有有效简历ID"""
         return await Resume.filter(is_deleted=0).values_list("id", flat=True)
+
+
+
+
+
+
+def normalize_skills(skills: list[str]) -> str:
+    return ",".join(
+        sorted({
+            s.strip().lower()
+            for s in skills
+            if isinstance(s, str) and s.strip()
+        })
+    )
