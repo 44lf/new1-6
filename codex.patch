@@ -1,4 +1,5 @@
-﻿diff --git a/app/utils/llm_client.py b/app/utils/llm_client.py
+﻿@'
+diff --git a/app/utils/llm_client.py b/app/utils/llm_client.py
 index ebaecedffe4098529fa8c3a29e86af7d03f3953b..bd93c099d671a9184c5e5a08769a86ff47490069 100644
 --- a/app/utils/llm_client.py
 +++ b/app/utils/llm_client.py
@@ -9,15 +10,15 @@ index ebaecedffe4098529fa8c3a29e86af7d03f3953b..bd93c099d671a9184c5e5a08769a86ff
  from openai import AsyncOpenAI  # type: ignore
  from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
 +from app.utils.school_tier import infer_school_tier
- 
- 
+
+
  # 初始化异步客户端
  client = AsyncOpenAI(
      api_key=LLM_API_KEY,
      base_url=LLM_BASE_URL,
  )
- 
- 
+
+
  class LLMClient:
      @staticmethod
      def _extract_json(content: str) -> dict:
@@ -29,29 +30,29 @@ index ebaecedffe4098529fa8c3a29e86af7d03f3953b..bd93c099d671a9184c5e5a08769a86ff
          """
          if not content:
              raise ValueError("空响应内容，无法解析 JSON")
- 
+
          clean_content = content.replace("```json", "").replace("```", "").strip()
- 
+
          # 1) 直接解析
          try:
 @@ -92,42 +93,46 @@ class LLMClient:
- 
+
          except Exception as e:
              # ... 异常处理保持不变 ...
              return {"is_qualified": False, "error": str(e), "json_data": {}, "candidate_info": {}}
- 
+
      @staticmethod
      def _normalize_data_no_regex(data: dict) -> dict:
- 
+
          data.setdefault("candidate_info", {})
          json_data = data.setdefault("json_data", {})
- 
+
          # --- 清洗毕业年份 ---
          edu = json_data.get("education")
          if not isinstance(edu, dict):
              edu = {}
              json_data["education"] = edu
- 
+
          if "graduation_year" in edu and edu["graduation_year"] is not None:
              raw_val = str(edu["graduation_year"])
              digits = "".join([c for c in raw_val if c.isdigit()])
@@ -59,7 +60,7 @@ index ebaecedffe4098529fa8c3a29e86af7d03f3953b..bd93c099d671a9184c5e5a08769a86ff
                  year_candidate = digits[:4]
                  if year_candidate.startswith("19") or year_candidate.startswith("20"):
                      edu["graduation_year"] = year_candidate
- 
+
 +        # --- 补全学校层次 ---
 +        if edu.get("schooltier") is None:
 +            edu["schooltier"] = infer_school_tier(edu.get("university"))
@@ -79,7 +80,7 @@ index ebaecedffe4098529fa8c3a29e86af7d03f3953b..bd93c099d671a9184c5e5a08769a86ff
              json_data["skills"] = [str(s).strip() for s in skills if str(s).strip()]
          else:
              json_data["skills"] = []
- 
+
          return data
 diff --git a/app/utils/school_tier.py b/app/utils/school_tier.py
 new file mode 100644
@@ -200,3 +201,4 @@ index 0000000000000000000000000000000000000000..ad98b197c80c4e15fa30cc4404c4e537
 +                return "双一流"
 +
 +    return None
+'@ | Set-Content -NoNewline -Encoding UTF8 .\codex.patch
