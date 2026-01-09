@@ -1,5 +1,4 @@
 import asyncio
-import json
 import traceback
 import uuid
 from datetime import datetime
@@ -13,6 +12,7 @@ from app.utils.llm_client import LLMClient
 from app.utils.pdf_parser import PdfParser
 from app.settings import MINIO_BUCKET_NAME
 from app.prompts.base import BasePromptProvider
+
 
 class ResumeService:
     #同时限制LLM解析数量
@@ -35,6 +35,14 @@ class ResumeService:
             resume = await Resume.get_or_none(id=resume_id, is_deleted=0)
             if not resume:
                 print(f"Service: 未找到有效简历ID {resume_id}")
+                return
+
+            if resume.file_url and resume.file_url.startswith("manual://"):
+                print(f"Service: 简历 {resume_id} 为手动录入数据，跳过 AI 解析流程")
+                # 确保状态为合格/完成，避免卡在“处理中”
+                if resume.status != 2:
+                    resume.status = 2
+                    await resume.save()
                 return
 
             # 更新状态为处理中 (1=Processing)
@@ -242,11 +250,18 @@ class ResumeService:
         if phone:
             query = query.filter(phone=phone)
 
-        count = await query.count()
-        if count > 0:
-            # 逻辑删除：更新状态为 1
-            await query.update(is_deleted=1)
+        resume_ids = await query.values_list('id', flat=True)
+        count = len(resume_ids)
 
+        if count > 0:
+            # 1. 逻辑删除简历
+            await Resume.filter(id__in=resume_ids).update(is_deleted=1)
+
+            # 2. 同步逻辑删除关联的候选人 (Candidate)
+            # 只有当候选人关联的 resume_id 在我们删除的列表中时才删除
+            await Candidate.filter(resume_id__in=resume_ids, is_deleted=0).update(is_deleted=1)
+
+            print(f"已逻辑删除 {count} 份简历及其关联的候选人记录")
         return count
 
     @staticmethod
@@ -292,14 +307,7 @@ def normalize_text_value(value: Optional[str]) -> Optional[str]:
 
 
 def parse_skill_terms(skill: Optional[str]) -> list[str]:
-    """
-    解析技能搜索字符串，不使用正则表达式
-    支持: 逗号、空格、中文逗号、顿号分隔
-    示例:
-        "Python,Vue" -> ["python", "vue"]
-        "Python Vue Django" -> ["python", "vue", "django"]
-        "Python，Vue、React" -> ["python", "vue", "react"]
-    """
+
     if not skill:
         return []
 
