@@ -14,6 +14,7 @@ TORTOISE_ORM = {
     "apps": {
         "models": {
             "models": [
+                    "aerich.models",
                     "app.db.resume_table",
                     "app.db.prompt_table", 
                     "app.db.candidate_table"
