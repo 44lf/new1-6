@@ -29,6 +29,11 @@ class Resume(models.Model):
 
     #技能
     skills = fields.JSONField(null=True, description="技能标签列表，如 ['Python', 'Vue']")
+    skill_tags: fields.ManyToManyRelation["Skill"] = fields.ManyToManyField(
+        "models.Skill",
+        related_name="resumes",
+        through="resume_skills",
+    )
     # 存大模型解析出来的全部原始数据，用 JSON 存最灵活
     # null=True 表示刚创建时可以是空的
     parse_result = fields.JSONField(null=True, description="AI解析结果")

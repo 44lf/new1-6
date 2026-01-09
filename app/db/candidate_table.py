@@ -29,6 +29,11 @@ class Candidate(models.Model):
 
     #技能
     skills = fields.JSONField(null=True, description="技能标签列表，如 ['Python', 'Vue']")
+    skill_tags: fields.ManyToManyRelation["Skill"] = fields.ManyToManyField(
+        "models.Skill",
+        related_name="candidates",
+        through="candidate_skills",
+    )
 
     #工作经历
     work_experience = fields.JSONField(null=True, description="工作经历列表")

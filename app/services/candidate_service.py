@@ -6,7 +6,8 @@ from app.db.resume_table import Resume
 from app.schemas.candidate import CandidateCreate
 from app.enums.education import SchoolTier, Degree
 from app.services.prompt_service import PromptService
-from app.services.resume_service import normalize_text_value, parse_skill_terms, normalize_skills_lower
+from app.services.skill_service import SkillService
+from app.utils.skill_utils import normalize_text_value, parse_skill_terms, normalize_skills_lower
 import datetime
 
 class CandidateService:
@@ -66,6 +67,10 @@ class CandidateService:
             parse_result=None,
             is_deleted=0,
         )
+        skills = await SkillService.get_or_create_skills(payload.skills or [])
+        if skills:
+            await resume.skill_tags.add(*skills)
+            await candidate.skill_tags.add(*skills)
         return candidate
 
     @staticmethod
@@ -115,30 +120,13 @@ class CandidateService:
             filters &= Q(created_at__lte=date_to)
 
         # 3. 技能查询优化 - 先查询后过滤方案
-        query = Candidate.filter(filters).prefetch_related("resume", "prompt")
+        query = Candidate.filter(filters).prefetch_related("resume", "prompt", "skill_tags")
 
         if skill_terms:
-            # 获取所有符合前置条件的候选人
-            all_candidates = await query.all()
-
-            # Python层面过滤技能
-            filtered_candidates = []
-            for candidate in all_candidates:
-                if not candidate.skills:
-                    continue
-
-                # 将候选人的技能列表转为小写
-                candidate_skills_lower = [s.lower() if isinstance(s, str) else str(s).lower()
-                                         for s in candidate.skills]
-
-                # 检查是否所有搜索技能都在候选人技能中
-                if all(term.lower() in candidate_skills_lower for term in skill_terms):
-                    filtered_candidates.append(candidate)
-
-            return filtered_candidates
-        else:
-            # 没有技能过滤,直接返回
-            return await query.order_by("-created_at")
+            for term in skill_terms:
+                query = query.filter(skill_tags__name=term)
+            return await query.order_by("-created_at").distinct()
+        return await query.order_by("-created_at")
 
     @staticmethod
     async def update_candidate_info(candidate_id: int, update_data: dict):
@@ -164,6 +152,11 @@ class CandidateService:
 
             await candidate.update_from_dict(filtered_data)
             await candidate.save()
+            if "skills" in filtered_data:
+                skills = await SkillService.get_or_create_skills(filtered_data["skills"] or [])
+                await candidate.skill_tags.clear()
+                if skills:
+                    await candidate.skill_tags.add(*skills)
             return candidate
         return None
 
@@ -195,6 +188,4 @@ class CandidateService:
             await query.update(is_deleted=1)
 
         return count
-
-
 
