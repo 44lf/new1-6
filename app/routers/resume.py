@@ -94,7 +94,6 @@ async def list_resumes(
         None,
         description="状态列表，支持如 1,2 或 [状态1，状态2] 格式",
     ),
-    is_qualified: Optional[bool] = Query(None, description="筛选合格/不合格"),
     name: Optional[str] = Query(None, description="搜索姓名"),
     university: Optional[str] = Query(None, description="搜索学校"),
     major: Optional[str] = Query(None, description="搜索专业"),
@@ -108,7 +107,6 @@ async def list_resumes(
         return await ResumeService.get_resumes(
             status=status,
             status_list=status_list,
-            is_qualified=is_qualified,
             name=name,
             university=university,
             major=major,

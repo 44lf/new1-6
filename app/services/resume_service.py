@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Optional
 from tortoise.expressions import Q
 from app.db.resume_table import Resume
-from app.db.candidate_table import Candidate
+from app.db.resume_evaluation_table import ResumeEvaluation
 from app.services.prompt_service import PromptService
 from app.utils.minio_client import MinioClient
 from app.utils.llm_client import LLMClient
@@ -88,11 +88,10 @@ class ResumeService:
                     return json_data.get("education", {}).get(key)
 
                 # === 2. 更新 Resume 表 ===
-                resume.is_qualified = parse_result.get("is_qualified", False)
                 resume.parse_result = json_data
-                resume.reason = json_data.get("reason")
-                resume.prompt = prompt_obj
-                resume.score = json_data.get('score')
+                is_qualified = parse_result.get("is_qualified", False)
+                score = json_data.get("score")
+                reason = json_data.get("reason")
 
                 resume.name = cand_info.get("name")
                 resume.phone = cand_info.get("phone")
@@ -107,67 +106,45 @@ class ResumeService:
                 resume.skills = normalize_skills_lower(json_data.get("skills"))
                 resume.education_history = json_data.get("education_history")
 
-                resume.status = 2 # Completed
+                resume.status = 2 if is_qualified else 3
                 await resume.save()
                 resume_skills = await SkillService.get_or_create_skills(resume.skills or [])
                 await resume.skill_tags.clear()
                 if resume_skills:
                     await resume.skill_tags.add(*resume_skills)
-                print(f"简历解析完成，结果: {'合格' if resume.is_qualified else '不合格'}")
+                print(f"简历解析完成，结果: {'合格' if is_qualified else '不合格'}")
 
-                # 6. 如果是合格候选人，处理头像并创建 Candidate
-                if resume.is_qualified:
-                    # 逻辑删除旧记录 (同一份简历重新解析时，旧的候选人数据逻辑删除)
-                    old_candidates = await Candidate.filter(resume_id=resume.id, is_deleted=0).all()
-                    for old_cand in old_candidates:
-                        old_cand.is_deleted = 1
-                        await old_cand.save()
+                avatar_url = None
+                if avatar_data:
+                    ext = avatar_data["ext"]
+                    avatar_filename = f"avatars/{uuid.uuid4()}.{ext}"
+                    content_type = f"image/{ext}"
+                    avatar_url = await MinioClient.upload_bytes(avatar_data["bytes"], avatar_filename, content_type)
+                    resume.avatar_url = avatar_url
+                    await resume.save(update_fields=["avatar_url"])
 
-                    avatar_url = None
-                    if avatar_data:
-                        ext = avatar_data['ext']
-                        avatar_filename = f"avatars/{uuid.uuid4()}.{ext}"
-                        content_type = f"image/{ext}"
-                        avatar_url = await MinioClient.upload_bytes(avatar_data['bytes'], avatar_filename, content_type)
-
-                    # === 3. 创建 Candidate ===
-                    candidate = await Candidate.create(
-                        file_url=resume.file_url,
-                        prompt=prompt_obj,
-                        score=json_data.get('score'),
-                        name=cand_info.get("name"),
-                        phone=cand_info.get("phone"),
-                        email=cand_info.get("email"),
-                        avatar_url=avatar_url,
-                        university=get_edu_field("university"),
-                        schooltier=get_edu_field("schooltier"),
-                        degree=get_edu_field("degree"),
-                        major=get_edu_field("major"),
-                        graduation_time=get_edu_field("graduation_year"),
-                        skills=normalize_skills_lower(json_data.get("skills")),
-                        work_experience=json_data.get("work_experience"),
-                        project_experience=json_data.get("projects"),
-                        resume=resume,
-                        parse_result=json_data,
-                        is_deleted=0 # 显式设为0
-                    )
-                    if resume_skills:
-                        await candidate.skill_tags.add(*resume_skills)
-                    print(">>> 合格候选人记录已创建")
+                await ResumeEvaluation.update_or_create(
+                    defaults={
+                        "score": score,
+                        "is_qualified": is_qualified,
+                        "reason": reason,
+                        "evaluated_at": datetime.utcnow(),
+                    },
+                    resume=resume,
+                    prompt=prompt_obj,
+                )
                 print(f"Service: 简历 {resume_id} 处理完毕，释放锁")
 
             except Exception as e:
                 traceback.print_exc()
                 print(f"Error: 简历处理流程失败: {str(e)}")
                 resume.status = 4 # Failed
-                resume.reason = f'解析失败:{str(e)[:500]}'
                 await resume.save()
 
     @staticmethod
     async def get_resumes(
         status: Optional[int] = None,
         status_list: Optional[str] = None,
-        is_qualified: Optional[bool] = None,
         name: Optional[str] = None,
         university: Optional[str] = None,
         schooltier: Optional[str] = None,
@@ -191,9 +168,6 @@ class ResumeService:
             filters &= Q(status__in=parsed_statuses)
         elif status is not None:
             filters &= Q(status=status)
-
-        if is_qualified is not None:
-            filters &= Q(is_qualified=is_qualified)
 
         if normalized_name:
             filters &= Q(name__icontains=normalized_name)
@@ -252,11 +226,11 @@ class ResumeService:
             # 1. 逻辑删除简历
             await Resume.filter(id__in=resume_ids).update(is_deleted=1)
 
-            # 2. 同步逻辑删除关联的候选人 (Candidate)
-            # 只有当候选人关联的 resume_id 在我们删除的列表中时才删除
-            await Candidate.filter(resume_id__in=resume_ids, is_deleted=0).update(is_deleted=1)
+            # 2. 同步删除关联的评估记录
+            # 只有当评估记录关联的 resume_id 在我们删除的列表中时才删除
+            await ResumeEvaluation.filter(resume_id__in=resume_ids).delete()
 
-            print(f"已逻辑删除 {count} 份简历及其关联的候选人记录")
+            print(f"已逻辑删除 {count} 份简历及其关联的评估记录")
         return count
 
     @staticmethod

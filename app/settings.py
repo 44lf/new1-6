@@ -17,7 +17,7 @@ TORTOISE_ORM = {
                     "aerich.models",
                     "app.db.resume_table",
                     "app.db.prompt_table", 
-                    "app.db.candidate_table",
+                    "app.db.resume_evaluation_table",
                     "app.db.skill_table"
                     ],
             "default_connection": "default",

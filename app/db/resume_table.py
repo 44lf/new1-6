@@ -38,17 +38,6 @@ class Resume(models.Model):
     # null=True 表示刚创建时可以是空的
     parse_result = fields.JSONField(null=True, description="AI解析结果")
     
-    # 是否合格，方便快速筛选
-    is_qualified = fields.BooleanField(default=False, description="是否合格")
-
-    reason = fields.TextField(null=True, description="AI判断合格/不合格的理由")
-
-    #关联岗位
-    prompt = fields.ForeignKeyField('models.Prompt', related_name=False, null=True, description="关联的岗位提示词")
-
-    #关联分数
-    score = fields.IntField(null=True, description='AI判断岗位契合度分数')
-
     # 记录上传时间，auto_now_add=True 表示创建时自动填当前时间
     created_at = fields.DatetimeField(auto_now_add=True)
 
