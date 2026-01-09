@@ -1,9 +1,57 @@
+import uuid
 from typing import Optional
 from tortoise.expressions import Q
 from app.db.candidate_table import Candidate
-from app.services.resume_service import normalize_text_value, parse_skill_terms
+from app.db.resume_table import Resume
+from app.schemas.candidate import CandidateCreate
+from app.services.prompt_service import PromptService
+from app.services.resume_service import normalize_text_value, parse_skill_terms, normalize_skills_lower
 
 class CandidateService:
+    @staticmethod
+    async def create_candidate(payload: CandidateCreate) -> Optional[Candidate]:
+        prompt_obj = None
+        if payload.prompt_id:
+            prompt_obj = await PromptService.get_prompt_by_id(payload.prompt_id)
+            if not prompt_obj:
+                return None
+
+        resume = await Resume.create(
+            file_url=f"manual://{uuid.uuid4()}",
+            name=payload.name,
+            phone=payload.phone,
+            email=payload.email,
+            university=payload.university,
+            schooltier=payload.schooltier.value if payload.schooltier else None,
+            degree=payload.degree.value if payload.degree else None,
+            major=payload.major,
+            graduation_time=payload.graduation_time,
+            skills=normalize_skills_lower(payload.skills),
+            is_qualified=True,
+            status=2,
+            prompt=prompt_obj,
+        )
+
+        candidate = await Candidate.create(
+            file_url=resume.file_url,
+            prompt=prompt_obj,
+            name=payload.name,
+            phone=payload.phone,
+            email=payload.email,
+            university=payload.university,
+            schooltier=payload.schooltier.value if payload.schooltier else None,
+            degree=payload.degree.value if payload.degree else None,
+            major=payload.major,
+            graduation_time=payload.graduation_time,
+            skills=normalize_skills_lower(payload.skills),
+            work_experience=payload.work_experience,
+            project_experience=payload.project_experience,
+            resume=resume,
+            parse_result=None,
+            is_deleted=0,
+        )
+        return candidate
+
     @staticmethod
     async def get_all_candidates(
         prompt_id: Optional[int] = None,
@@ -107,7 +155,6 @@ class CandidateService:
             await query.update(is_deleted=1)
 
         return count
-
 
 
 

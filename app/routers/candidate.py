@@ -1,9 +1,17 @@
 from fastapi import APIRouter, HTTPException, Body, Query
 from typing import Optional
+from app.schemas.candidate import CandidateCreate
 from app.services.candidate_service import CandidateService
 from app.enums.education import SchoolTier, Degree
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
+
+@router.post("/", summary="手动新增候选人")
+async def create_candidate(payload: CandidateCreate = Body(...)):
+    candidate = await CandidateService.create_candidate(payload)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="关联岗位不存在")
+    return candidate
 
 @router.get("/", summary="多维度搜索候选人")
 async def list_candidates(
@@ -62,4 +70,3 @@ async def delete_candidate_by_info(
         raise HTTPException(status_code=404, detail="未找到符合条件的候选人")
 
     return {"message": f"成功删除了 {deleted_count} 名候选人"}
-
