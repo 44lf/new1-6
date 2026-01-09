@@ -6,43 +6,8 @@ from app.enums.education import SchoolTier, Degree
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
-
-def parse_form_list(value: Optional[str]) -> list[str]:
-    if not value:
-        return []
-    normalized = value.replace("，", ",").replace("、", ",").replace(";", ",")
-    items = [item.strip() for item in normalized.split(",")]
-    return [item for item in items if item]
-
 @router.post("/", summary="手动新增候选人")
-async def create_candidate(
-    name: str = Form(...),
-    phone: str = Form(...),
-    prompt_id: int = Form(...),
-    email: Optional[str] = Form(None),
-    university: Optional[str] = Form(None),
-    schooltier: Optional[SchoolTier] = Form(None),
-    degree: Optional[Degree] = Form(None),
-    major: Optional[str] = Form(None),
-    graduation_time: Optional[str] = Form(None),
-    skills: Optional[str] = Form(None),
-    work_experience: Optional[str] = Form(None),
-    project_experience: Optional[str] = Form(None),
-):
-    payload = CandidateCreate(
-        name=name,
-        phone=phone,
-        email=email,
-        university=university,
-        schooltier=schooltier,
-        degree=degree,
-        major=major,
-        graduation_time=graduation_time,
-        skills=parse_form_list(skills),
-        work_experience=parse_form_list(work_experience),
-        project_experience=parse_form_list(project_experience),
-        prompt_id=prompt_id,
-    )
+async def create_candidate(payload: CandidateCreate = Body(...)):
     candidate = await CandidateService.create_candidate(payload)
     if not candidate:
         raise HTTPException(status_code=404, detail="关联岗位不存在")
