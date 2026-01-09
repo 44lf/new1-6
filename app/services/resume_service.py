@@ -11,7 +11,6 @@ from app.utils.minio_client import MinioClient
 from app.utils.llm_client import LLMClient
 from app.utils.pdf_parser import PdfParser
 from app.settings import MINIO_BUCKET_NAME
-from app.prompts.base import BasePromptProvider
 
 
 class ResumeService:
@@ -24,7 +23,7 @@ class ResumeService:
         return await Resume.create(file_url=file_url, status=0)
 
     @classmethod
-    async def process_resume_workflow(cls, resume_id: int,prompt_provider: BasePromptProvider):
+    async def process_resume_workflow(cls, resume_id: int):
         async with cls._sem:
             """
             【核心业务逻辑】后台异步执行的任务：PDF解析 + LLM判断 + 结果回写
@@ -74,9 +73,10 @@ class ResumeService:
 
                 # 5. 调用 LLM
                 print("正在调用 LLM 进行解析...")
-                parse_result = await LLMClient.parse_resume(resume_content=text_content,
+                parse_result = await LLMClient.parse_resume(
+                    resume_content=text_content,
                     criteria_content=prompt_obj.content,
-                    prompt_provider=prompt_provider)
+                )
 
                 # === 1. 提取数据 ===
                 json_data = parse_result.get("json_data", {})
@@ -158,6 +158,7 @@ class ResumeService:
     @staticmethod
     async def get_resumes(
         status: Optional[int] = None,
+        status_list: Optional[str] = None,
         is_qualified: Optional[bool] = None,
         name: Optional[str] = None,
         university: Optional[str] = None,
@@ -177,7 +178,10 @@ class ResumeService:
         normalized_major = normalize_text_value(major)
         skill_terms = parse_skill_terms(skill)
 
-        if status is not None:
+        if status_list is not None:
+            parsed_statuses = parse_status_list(status_list)
+            filters &= Q(status__in=parsed_statuses)
+        elif status is not None:
             filters &= Q(status=status)
 
         if is_qualified is not None:
@@ -265,14 +269,14 @@ class ResumeService:
         return count
 
     @staticmethod
-    async def batch_reanalyze_resumes(resume_ids: List[int],prompt_provider: BasePromptProvider):
+    async def batch_reanalyze_resumes(resume_ids: List[int]):
         """批量重新解析简历"""
         print(f"Service: 开始执行批量重测任务，共 {len(resume_ids)} 条...")
         success_count = 0
         fail_count = 0
         for rid in resume_ids:
             try:
-                await ResumeService.process_resume_workflow(rid,prompt_provider)
+                await ResumeService.process_resume_workflow(rid)
                 success_count += 1
                 await asyncio.sleep(1)
             except Exception as e:
@@ -332,3 +336,37 @@ def parse_skill_terms(skill: Optional[str]) -> list[str]:
             result.append(normalize_skill_query(cleaned))
 
     return result
+
+
+def parse_status_list(status_list: Optional[str]) -> list[int]:
+    """解析状态列表字符串，提取数字并校验范围"""
+    if status_list is None:
+        return []
+
+    allowed_statuses = {0, 1, 2, 3, 4}
+    statuses = []
+    current = []
+
+    for char in status_list:
+        if char.isdigit():
+            current.append(char)
+        elif current:
+            statuses.append(int("".join(current)))
+            current = []
+
+    if current:
+        statuses.append(int("".join(current)))
+
+    if not statuses:
+        raise ValueError("未找到有效状态值")
+
+    invalid_statuses = [status for status in statuses if status not in allowed_statuses]
+    if invalid_statuses:
+        raise ValueError("存在无效状态值")
+
+    unique_statuses = []
+    for status in statuses:
+        if status not in unique_statuses:
+            unique_statuses.append(status)
+
+    return unique_statuses

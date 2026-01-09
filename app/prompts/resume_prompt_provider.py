@@ -1,9 +1,8 @@
 # app/prompts/resume_prompt_provider.py
 import json
 from typing import Any, Dict, List
-from .base import BasePromptProvider  # 导入刚才定义的基类
 
-class ResumePromptProvider(BasePromptProvider):
+class ResumePromptProvider:
     def get_json_structure(self) -> Dict[str, Any]:
         return {
             "is_qualified": "Boolean, true表示符合硬性要求",

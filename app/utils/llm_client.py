@@ -1,6 +1,6 @@
 import json
-from typing import Any, Dict,List
-from app.prompts.base import BasePromptProvider
+from typing import Any, Dict, List
+from app.prompts.resume_prompt_provider import ResumePromptProvider
 from openai import AsyncOpenAI  # type: ignore
 from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
 from app.utils.school_tier import infer_school_tier
@@ -14,6 +14,10 @@ client = AsyncOpenAI(
 
 
 class LLMClient:
+    @staticmethod
+    def build_resume_messages(criteria_content: str, resume_content: str) -> list[Dict[str, Any]]:
+        return ResumePromptProvider().build_messages(criteria_content, resume_content)
+
     @staticmethod
     def _extract_json(content: str) -> dict:
 
@@ -66,13 +70,9 @@ class LLMClient:
     async def parse_resume(
         resume_content: str,
         criteria_content: str,
-        prompt_provider: BasePromptProvider  # <--- 核心改动：依赖注入
     ) -> dict:
 
-        # 负责调用 provider.build_messages
-
-        # 使用注入进来的 provider 生成消息
-        messages = prompt_provider.build_messages(criteria_content, resume_content)
+        messages = LLMClient.build_resume_messages(criteria_content, resume_content)
 
         content = ""
         try:
