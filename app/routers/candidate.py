@@ -3,7 +3,7 @@ from typing import Optional
 from app.schemas.candidate import CandidateCreate
 from app.services.candidate_service import CandidateService
 from app.enums.education import SchoolTier, Degree
-import datetime
+from datetime import datetime
 
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])

@@ -123,7 +123,7 @@ class CandidateService:
             return filtered_candidates
         else:
             # 没有技能过滤,直接返回
-                return await query.order_by("-created_at")
+            return await query.order_by("-created_at")
 
     @staticmethod
     async def update_candidate_info(candidate_id: int, update_data: dict):
