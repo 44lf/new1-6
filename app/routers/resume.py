@@ -1,26 +1,20 @@
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Query,Depends
+from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Query
 from typing import Optional
 
 from app.services.resume_service import ResumeService
 from app.utils.minio_client import MinioClient
 from app.db.resume_table import Resume
-from app.prompts.base import BasePromptProvider
-from app.prompts.resume_prompt_provider import ResumePromptProvider
 from app.enums.education import SchoolTier, Degree
 
 
 router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
-def get_prompt_provider() -> BasePromptProvider:
-    return ResumePromptProvider()
-
 @router.post("/upload", summary="上传简历PDF")
 async def upload_resume(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    prompt_provider: BasePromptProvider = Depends(get_prompt_provider)
 ):
 
     if not file.filename.lower().endswith(".pdf"):
@@ -39,8 +33,7 @@ async def upload_resume(
 
     background_tasks.add_task(
         ResumeService.process_resume_workflow,
-        resume.id,
-        prompt_provider
+        resume.id
     )
 
     return {
@@ -61,7 +54,6 @@ async def upload_resume(
 async def resume_analyze(
     resume_id: int,
     background_tasks: BackgroundTasks,
-    prompt_provider: BasePromptProvider = Depends(get_prompt_provider)
 ):
     resume = await Resume.get_or_none(id=resume_id)
     if not resume:
@@ -69,8 +61,7 @@ async def resume_analyze(
 
     background_tasks.add_task(
         ResumeService.process_resume_workflow,
-        resume.id,
-        prompt_provider
+        resume.id
     )
 
     return {"code": 200, "message": "已将简历重新加入解析队列"}
@@ -78,7 +69,6 @@ async def resume_analyze(
 @router.post("/reanalyze/all", summary="一键重新筛选所有简历")
 async def reanalyze_all_resumes(
     background_tasks: BackgroundTasks,
-    prompt_provider: BasePromptProvider = Depends(get_prompt_provider) # 1. 注入依赖
 ):
     """
     **全量重新筛选**：
@@ -90,7 +80,7 @@ async def reanalyze_all_resumes(
     if not all_ids:
         return {"code": 200, "message": "当前简历库为空，无需重测"}
 
-    background_tasks.add_task(ResumeService.batch_reanalyze_resumes, all_ids,prompt_provider)
+    background_tasks.add_task(ResumeService.batch_reanalyze_resumes, all_ids)
 
     return {
         "code": 200,
