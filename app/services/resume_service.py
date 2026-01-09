@@ -15,132 +15,137 @@ from app.settings import MINIO_BUCKET_NAME
 from app.prompts.base import BasePromptProvider
 
 class ResumeService:
+    #同时限制LLM解析数量
+    _sem = asyncio.Semaphore(3)
+
     @staticmethod
     async def create_resume_record(file_url: str) -> Resume:
         """创建简历初始记录"""
         return await Resume.create(file_url=file_url, status=0)
 
-    @staticmethod
-    async def process_resume_workflow(resume_id: int,prompt_provider: BasePromptProvider):
-        """
-        【核心业务逻辑】后台异步执行的任务：PDF解析 + LLM判断 + 结果回写
-        """
-        print(f"Service: 开始处理简历 {resume_id}")
+    @classmethod
+    async def process_resume_workflow(cls, resume_id: int,prompt_provider: BasePromptProvider):
+        async with cls._sem:
+            """
+            【核心业务逻辑】后台异步执行的任务：PDF解析 + LLM判断 + 结果回写
+            """
+            print(f"Service: 开始处理简历 {resume_id} (获得并发锁)")
 
-        # 1. 获取简历记录 (过滤已删除的)
-        resume = await Resume.get_or_none(id=resume_id, is_deleted=0)
-        if not resume:
-            print(f"Service: 未找到有效简历ID {resume_id}")
-            return
+            # 1. 获取简历记录 (过滤已删除的)
+            resume = await Resume.get_or_none(id=resume_id, is_deleted=0)
+            if not resume:
+                print(f"Service: 未找到有效简历ID {resume_id}")
+                return
 
-        # 更新状态为处理中 (1=Processing)
-        resume.status = 1
-        await resume.save()
-
-        try:
-            # 2. 准备环境：获取启用提示词
-            prompt_obj = await PromptService.get_active_prompt()
-            if not prompt_obj:
-                raise Exception("系统未配置启用的提示词 (Prompt)，无法解析")
-
-            # 3. 从 MinIO 下载
-            if f"/{MINIO_BUCKET_NAME}/" in resume.file_url:
-                object_name = resume.file_url.split(f"/{MINIO_BUCKET_NAME}/")[-1]
-            else:
-                object_name = resume.file_url.split("/")[-1]
-
-            print(f"正在从 MinIO 下载: {object_name}")
-            file_bytes = await MinioClient.get_file_bytes(object_name)
-            if not file_bytes:
-                raise Exception("文件下载失败或文件内容为空")
-
-            # 4. 解析 PDF
-            text_content, avatar_data = PdfParser.parse_pdf(file_bytes)
-
-            if not text_content or len(text_content.strip()) < 10:
-                raise Exception("无法从PDF中提取有效文本，请确认简历不是纯图片扫描件")
-
-            # 5. 调用 LLM
-            print("正在调用 LLM 进行解析...")
-            parse_result = await LLMClient.parse_resume(resume_content=text_content,
-                criteria_content=prompt_obj.content,
-                prompt_provider=prompt_provider)
-
-            # === 1. 提取数据 ===
-            json_data = parse_result.get("json_data", {})
-            cand_info = parse_result.get("candidate_info", {})
-
-            def get_edu_field(key):
-                return json_data.get("education", {}).get(key)
-
-            # === 2. 更新 Resume 表 ===
-            resume.is_qualified = parse_result.get("is_qualified", False)
-            resume.parse_result = json_data
-            resume.reason = json_data.get("reason")
-            resume.prompt = prompt_obj
-            resume.score = json_data.get('score')
-
-            resume.name = cand_info.get("name")
-            resume.phone = cand_info.get("phone")
-            resume.email = cand_info.get("email")
-
-            resume.university = get_edu_field("university")
-            resume.schooltier = get_edu_field("schooltier")
-            resume.degree = get_edu_field("degree")
-            resume.major = get_edu_field("major")
-            resume.graduation_time = get_edu_field("graduation_year")
-
-            resume.skills = normalize_skills_lower(json_data.get("skills"))
-            resume.education_history = json_data.get("education_history")
-
-            resume.status = 2 # Completed
+            # 更新状态为处理中 (1=Processing)
+            resume.status = 1
             await resume.save()
-            print(f"简历解析完成，结果: {'合格' if resume.is_qualified else '不合格'}")
 
-            # 6. 如果是合格候选人，处理头像并创建 Candidate
-            if resume.is_qualified:
-                # 逻辑删除旧记录 (同一份简历重新解析时，旧的候选人数据逻辑删除)
-                old_candidates = await Candidate.filter(resume_id=resume.id, is_deleted=0).all()
-                for old_cand in old_candidates:
-                    old_cand.is_deleted = 1
-                    await old_cand.save()
+            try:
+                # 2. 准备环境：获取启用提示词
+                prompt_obj = await PromptService.get_active_prompt()
+                if not prompt_obj:
+                    raise Exception("系统未配置启用的提示词 (Prompt)，无法解析")
 
-                avatar_url = None
-                if avatar_data:
-                    ext = avatar_data['ext']
-                    avatar_filename = f"avatars/{uuid.uuid4()}.{ext}"
-                    content_type = f"image/{ext}"
-                    avatar_url = await MinioClient.upload_bytes(avatar_data['bytes'], avatar_filename, content_type)
+                # 3. 从 MinIO 下载
+                if f"/{MINIO_BUCKET_NAME}/" in resume.file_url:
+                    object_name = resume.file_url.split(f"/{MINIO_BUCKET_NAME}/")[-1]
+                else:
+                    object_name = resume.file_url.split("/")[-1]
 
-                # === 3. 创建 Candidate ===
-                await Candidate.create(
-                    file_url=resume.file_url,
-                    prompt=prompt_obj,
-                    score=json_data.get('score'),
-                    name=cand_info.get("name"),
-                    phone=cand_info.get("phone"),
-                    email=cand_info.get("email"),
-                    avatar_url=avatar_url,
-                    university=get_edu_field("university"),
-                    schooltier=get_edu_field("schooltier"),
-                    degree=get_edu_field("degree"),
-                    major=get_edu_field("major"),
-                    graduation_time=get_edu_field("graduation_year"),
-                    skills=normalize_skills_lower(json_data.get("skills")),
-                    work_experience=json_data.get("work_experience"),
-                    project_experience=json_data.get("projects"),
-                    resume=resume,
-                    parse_result=json_data,
-                    is_deleted=0 # 显式设为0
-                )
-                print(">>> 合格候选人记录已创建")
+                print(f"正在从 MinIO 下载: {object_name}")
+                file_bytes = await MinioClient.get_file_bytes(object_name)
+                if not file_bytes:
+                    raise Exception("文件下载失败或文件内容为空")
 
-        except Exception as e:
-            traceback.print_exc()
-            print(f"Error: 简历处理流程失败: {str(e)}")
-            resume.status = 4 # Failed
-            resume.reason = f'解析失败:{str(e)[:500]}'
-            await resume.save()
+                # 4. 解析 PDF
+                text_content, avatar_data = PdfParser.parse_pdf(file_bytes)
+
+                if not text_content or len(text_content.strip()) < 10:
+                    raise Exception("无法从PDF中提取有效文本，请确认简历不是纯图片扫描件")
+
+                # 5. 调用 LLM
+                print("正在调用 LLM 进行解析...")
+                parse_result = await LLMClient.parse_resume(resume_content=text_content,
+                    criteria_content=prompt_obj.content,
+                    prompt_provider=prompt_provider)
+
+                # === 1. 提取数据 ===
+                json_data = parse_result.get("json_data", {})
+                cand_info = parse_result.get("candidate_info", {})
+
+                def get_edu_field(key):
+                    return json_data.get("education", {}).get(key)
+
+                # === 2. 更新 Resume 表 ===
+                resume.is_qualified = parse_result.get("is_qualified", False)
+                resume.parse_result = json_data
+                resume.reason = json_data.get("reason")
+                resume.prompt = prompt_obj
+                resume.score = json_data.get('score')
+
+                resume.name = cand_info.get("name")
+                resume.phone = cand_info.get("phone")
+                resume.email = cand_info.get("email")
+
+                resume.university = get_edu_field("university")
+                resume.schooltier = get_edu_field("schooltier")
+                resume.degree = get_edu_field("degree")
+                resume.major = get_edu_field("major")
+                resume.graduation_time = get_edu_field("graduation_year")
+
+                resume.skills = normalize_skills_lower(json_data.get("skills"))
+                resume.education_history = json_data.get("education_history")
+
+                resume.status = 2 # Completed
+                await resume.save()
+                print(f"简历解析完成，结果: {'合格' if resume.is_qualified else '不合格'}")
+
+                # 6. 如果是合格候选人，处理头像并创建 Candidate
+                if resume.is_qualified:
+                    # 逻辑删除旧记录 (同一份简历重新解析时，旧的候选人数据逻辑删除)
+                    old_candidates = await Candidate.filter(resume_id=resume.id, is_deleted=0).all()
+                    for old_cand in old_candidates:
+                        old_cand.is_deleted = 1
+                        await old_cand.save()
+
+                    avatar_url = None
+                    if avatar_data:
+                        ext = avatar_data['ext']
+                        avatar_filename = f"avatars/{uuid.uuid4()}.{ext}"
+                        content_type = f"image/{ext}"
+                        avatar_url = await MinioClient.upload_bytes(avatar_data['bytes'], avatar_filename, content_type)
+
+                    # === 3. 创建 Candidate ===
+                    await Candidate.create(
+                        file_url=resume.file_url,
+                        prompt=prompt_obj,
+                        score=json_data.get('score'),
+                        name=cand_info.get("name"),
+                        phone=cand_info.get("phone"),
+                        email=cand_info.get("email"),
+                        avatar_url=avatar_url,
+                        university=get_edu_field("university"),
+                        schooltier=get_edu_field("schooltier"),
+                        degree=get_edu_field("degree"),
+                        major=get_edu_field("major"),
+                        graduation_time=get_edu_field("graduation_year"),
+                        skills=normalize_skills_lower(json_data.get("skills")),
+                        work_experience=json_data.get("work_experience"),
+                        project_experience=json_data.get("projects"),
+                        resume=resume,
+                        parse_result=json_data,
+                        is_deleted=0 # 显式设为0
+                    )
+                    print(">>> 合格候选人记录已创建")
+                print(f"Service: 简历 {resume_id} 处理完毕，释放锁")
+
+            except Exception as e:
+                traceback.print_exc()
+                print(f"Error: 简历处理流程失败: {str(e)}")
+                resume.status = 4 # Failed
+                resume.reason = f'解析失败:{str(e)[:500]}'
+                await resume.save()
 
     @staticmethod
     async def get_resumes(

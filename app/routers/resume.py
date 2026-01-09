@@ -52,6 +52,11 @@ async def upload_resume(
         },
     }
 
+
+
+
+
+
 @router.post("/{resume_id}/analyze", summary="重新分析单份简历")
 async def resume_analyze(
     resume_id: int,
