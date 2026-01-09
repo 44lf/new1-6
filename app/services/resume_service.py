@@ -2,6 +2,7 @@ import asyncio
 import json
 import traceback
 import uuid
+from datetime import datetime
 from typing import List, Optional
 from tortoise.expressions import Q
 from app.db.resume_table import Resume
@@ -150,7 +151,9 @@ class ResumeService:
         schooltier: Optional[str] = None,
         degree: Optional[str] = None,
         major: Optional[str] = None,
-        skill: Optional[str] = None
+        skill: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
     ):
         """多维度简历搜索 (过滤已删除)"""
         filters = Q(is_deleted=0)
@@ -181,6 +184,12 @@ class ResumeService:
 
         if normalized_major:
             filters &= Q(major__icontains=normalized_major)
+
+        if date_from:
+            filters &= Q(created_at__gte=date_from)
+
+        if date_to:
+            filters &= Q(created_at__lte=date_to)
 
         # 技能查询优化 - 先查询后过滤
         query = Resume.filter(filters)
