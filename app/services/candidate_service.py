@@ -6,6 +6,7 @@ from app.db.resume_table import Resume
 from app.schemas.candidate import CandidateCreate
 from app.services.prompt_service import PromptService
 from app.services.resume_service import normalize_text_value, parse_skill_terms, normalize_skills_lower
+import datetime
 
 class CandidateService:
     @staticmethod
