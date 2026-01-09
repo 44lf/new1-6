@@ -9,6 +9,8 @@ from app.db.candidate_table import Candidate
 from app.services.prompt_service import PromptService
 from app.utils.minio_client import MinioClient
 from app.utils.llm_client import LLMClient
+from app.services.skill_service import SkillService
+from app.utils.skill_utils import normalize_text_value, parse_skill_terms, normalize_skills_lower
 from app.utils.pdf_parser import PdfParser
 from app.settings import MINIO_BUCKET_NAME
 
@@ -107,6 +109,10 @@ class ResumeService:
 
                 resume.status = 2 # Completed
                 await resume.save()
+                resume_skills = await SkillService.get_or_create_skills(resume.skills or [])
+                await resume.skill_tags.clear()
+                if resume_skills:
+                    await resume.skill_tags.add(*resume_skills)
                 print(f"简历解析完成，结果: {'合格' if resume.is_qualified else '不合格'}")
 
                 # 6. 如果是合格候选人，处理头像并创建 Candidate
@@ -125,7 +131,7 @@ class ResumeService:
                         avatar_url = await MinioClient.upload_bytes(avatar_data['bytes'], avatar_filename, content_type)
 
                     # === 3. 创建 Candidate ===
-                    await Candidate.create(
+                    candidate = await Candidate.create(
                         file_url=resume.file_url,
                         prompt=prompt_obj,
                         score=json_data.get('score'),
@@ -145,6 +151,8 @@ class ResumeService:
                         parse_result=json_data,
                         is_deleted=0 # 显式设为0
                     )
+                    if resume_skills:
+                        await candidate.skill_tags.add(*resume_skills)
                     print(">>> 合格候选人记录已创建")
                 print(f"Service: 简历 {resume_id} 处理完毕，释放锁")
 
@@ -209,30 +217,13 @@ class ResumeService:
             filters &= Q(created_at__lte=date_to)
 
         # 技能查询优化 - 先查询后过滤
-        query = Resume.filter(filters)
+        query = Resume.filter(filters).prefetch_related("skill_tags")
 
         if skill_terms:
-            # 获取所有符合前置条件的简历
-            all_resumes = await query.all()
-
-            # Python层面过滤技能
-            filtered_resumes = []
-            for resume in all_resumes:
-                if not resume.skills:
-                    continue
-
-                # 将简历的技能列表转为小写
-                resume_skills_lower = [s.lower() if isinstance(s, str) else str(s).lower()
-                                      for s in resume.skills]
-
-                # 检查是否所有搜索技能都在简历技能中
-                if all(term.lower() in resume_skills_lower for term in skill_terms):
-                    filtered_resumes.append(resume)
-
-            return filtered_resumes
-        else:
-            # 没有技能过滤,直接返回
-            return await query.order_by("-created_at")
+            for term in skill_terms:
+                query = query.filter(skill_tags__name=term)
+            return await query.order_by("-created_at").distinct()
+        return await query.order_by("-created_at")
 
     @staticmethod
     async def delete_resumes_by_info(
@@ -288,54 +279,6 @@ class ResumeService:
     async def get_all_resume_ids() -> List[int]:
         """获取所有有效简历ID"""
         return await Resume.filter(is_deleted=0).values_list("id", flat=True)
-
-
-def normalize_skills_lower(skills: list[str]) -> list[str]:
-    """标准化技能列表为小写"""
-    if not skills:
-        return []
-    return [s.strip().lower() for s in skills if s and s.strip()]
-
-
-def normalize_skill_query(skill: str) -> str:
-    """将技能查询词标准化为小写"""
-    return skill.strip().lower()
-
-
-def normalize_text_value(value: Optional[str]) -> Optional[str]:
-    """标准化文本值"""
-    if value is None:
-        return None
-    normalized = value.strip()
-    return normalized or None
-
-
-def parse_skill_terms(skill: Optional[str]) -> list[str]:
-
-    if not skill:
-        return []
-
-    # 1. 统一分隔符：将中文逗号和顿号替换为英文逗号
-    normalized = skill.strip().replace('，', ',').replace('、', ',')
-
-    # 2. 先按逗号分割
-    comma_parts = normalized.split(',')
-
-    # 3. 再按空格分割每个部分
-    tokens = []
-    for part in comma_parts:
-        # 按空格分割
-        space_parts = part.split()
-        tokens.extend(space_parts)
-
-    # 4. 清理并转小写
-    result = []
-    for token in tokens:
-        cleaned = token.strip()
-        if cleaned:
-            result.append(normalize_skill_query(cleaned))
-
-    return result
 
 
 def parse_status_list(status_list: Optional[str]) -> list[int]:
