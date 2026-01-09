@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict
 from app.prompts.resume_prompt_provider import ResumePromptProvider
 from openai import AsyncOpenAI  # type: ignore
 from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
@@ -47,15 +47,13 @@ class LLMClient:
         return obj
 
     @staticmethod
-    async def _call_llm(messages: list[Dict[str, Any]], use_response_format: bool) -> str:
+    async def _call_llm(messages: list[Dict[str, Any]]) -> str:
         params: Dict[str, Any] = {
             "model": LLM_MODEL_NAME,
             "messages": messages,
             "temperature": 0.1,
+            "response_format": {"type": "json_object"},
         }
-
-        if use_response_format:
-            params["response_format"] = {"type": "json_object"}
 
         response = await client.chat.completions.create(**params)
         if not response.choices:
@@ -74,13 +72,8 @@ class LLMClient:
 
         messages = LLMClient.build_resume_messages(criteria_content, resume_content)
 
-        content = ""
         try:
-            try:
-                content = await LLMClient._call_llm(messages, use_response_format=True)
-            except Exception as e:
-                pass
-
+            content = await LLMClient._call_llm(messages)
             parsed_data = LLMClient._extract_json(content)
             return LLMClient._normalize_data_no_regex(parsed_data)
 
