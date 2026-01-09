@@ -61,6 +61,8 @@ class CandidateService:
         degree: Optional[str] = None,
         major: Optional[str] = None,
         skill: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
     ):
 
 
@@ -89,6 +91,12 @@ class CandidateService:
 
         if degree:
             filters &= Q(degree=degree.value)
+
+        if date_from:
+            filters &= Q(created_at__gte=date_from)
+
+        if date_to:
+            filters &= Q(created_at__lte=date_to)
 
         # 3. 技能查询优化 - 先查询后过滤方案
         query = Candidate.filter(filters).prefetch_related("resume", "prompt")

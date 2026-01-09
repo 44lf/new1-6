@@ -21,7 +21,9 @@ async def list_candidates(
     major: Optional[str] = Query(None, description="搜索专业 (支持模糊)"),
     skill: Optional[str] = Query(None, description="搜索技能 (如: Python)"),
     schooltier: Optional[SchoolTier] = Query(None, description="学校层次"),
-    degree: Optional[Degree] = Query(None, description='学历层次')
+    degree: Optional[Degree] = Query(None, description='学历层次'),
+    date_from: Optional[datetime] = Query(None, description="起始日期/时间 (>=)"),
+    date_to: Optional[datetime] = Query(None, description="结束日期/时间 (<=)"),
 ):
     """
     **升级版查询功能**：
@@ -37,7 +39,9 @@ async def list_candidates(
         major=major,
         skill=skill,
         schooltier=schooltier,
-        degree=degree
+        degree=degree,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 @router.put("/{candidate_id}", summary="更新候选人信息")

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Query,Depends
 from typing import Optional
 
@@ -100,7 +101,9 @@ async def list_resumes(
     major: Optional[str] = Query(None, description="搜索专业"),
     skill: Optional[str] = Query(None, description="搜索技能 (如: Python)"),
     schooltier: Optional[SchoolTier] = Query(None, description="学校层次"),
-    degree: Optional[Degree] = Query(None, description='学历层次')
+    degree: Optional[Degree] = Query(None, description='学历层次'),
+    date_from: Optional[datetime] = Query(None, description="起始日期/时间 (>=)"),
+    date_to: Optional[datetime] = Query(None, description="结束日期/时间 (<=)"),
 ):
     return await ResumeService.get_resumes(
         status=status,
@@ -110,7 +113,9 @@ async def list_resumes(
         major=major,
         skill=skill,
         schooltier=schooltier,
-        degree=degree
+        degree=degree,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 @router.delete("/", summary="根据信息删除简历")
