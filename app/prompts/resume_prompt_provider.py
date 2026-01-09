@@ -5,6 +5,7 @@ from .base import BasePromptProvider  # 导入刚才定义的基类
 
 class ResumePromptProvider(BasePromptProvider):
     def get_json_structure(self) -> Dict[str, Any]:
+        #返回一个字典，将llm输出结构返回
         return {
             "is_qualified": "Boolean, true表示符合硬性要求",
             "candidate_info": {"name": "姓名", "phone": "电话", "email": "邮箱"},
@@ -26,8 +27,9 @@ class ResumePromptProvider(BasePromptProvider):
         }
 
     def _system_instruction(self) -> str:
-        # 这是一个内部辅助方法
+        #内部辅助方法，不对外暴露，提高可读性、复用性
         schema = self.get_json_structure()
+        #返回一个字符串，将llm规则为字符串返回，json.dumps会将字典转成json的字符串
         return (
             "你是一个专业的招聘助手，负责根据筛选标准解析简历并输出结构化结果。\n"
             "【输出要求】\n"
@@ -61,7 +63,6 @@ class ResumePromptProvider(BasePromptProvider):
             "1. projects 必须是字符串数组 string[]，只允许输出‘项目经历’，不允许输出纯数字、简历不存在的信息。\n"
             "2. 每个项目经历可以包含但不限于项目名称、项目内容、项目时间、项目职责\n"
             "3. 不要编造简历中不存在的信息\n"
-            
             
             
             "【输出 JSON 结构】\n"
