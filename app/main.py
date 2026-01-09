@@ -5,7 +5,6 @@ from app.settings import TORTOISE_ORM
 # 1. 引入路由
 from app.routers.resume import router as resume_router
 from app.routers.prompt import router as prompt_router
-from app.routers.candidate import router as candidate_router
 
 # 2. 创建 APP
 app = FastAPI(title="简历智能解析系统")
@@ -13,7 +12,6 @@ app = FastAPI(title="简历智能解析系统")
 # 3. 注册路由
 app.include_router(resume_router)
 app.include_router(prompt_router)
-app.include_router(candidate_router)
 
 # 4. 注册数据库
 register_tortoise(

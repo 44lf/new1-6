@@ -24,7 +24,6 @@ class SkillService:
 
     @staticmethod
     async def backfill_skill_tags() -> None:
-        from app.db.candidate_table import Candidate
         from app.db.resume_table import Resume
 
         resumes = await Resume.all()
@@ -33,10 +32,3 @@ class SkillService:
             await resume.skill_tags.clear()
             if resume_skills:
                 await resume.skill_tags.add(*resume_skills)
-
-        candidates = await Candidate.all()
-        for candidate in candidates:
-            candidate_skills = await SkillService.get_or_create_skills(candidate.skills or [])
-            await candidate.skill_tags.clear()
-            if candidate_skills:
-                await candidate.skill_tags.add(*candidate_skills)
