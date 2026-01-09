@@ -4,11 +4,26 @@ from tortoise.expressions import Q
 from app.db.candidate_table import Candidate
 from app.db.resume_table import Resume
 from app.schemas.candidate import CandidateCreate
+from app.enums.education import SchoolTier, Degree
 from app.services.prompt_service import PromptService
 from app.services.resume_service import normalize_text_value, parse_skill_terms, normalize_skills_lower
 import datetime
 
 class CandidateService:
+    _UPDATE_FIELDS = {
+        "name",
+        "phone",
+        "email",
+        "university",
+        "schooltier",
+        "degree",
+        "major",
+        "graduation_time",
+        "skills",
+        "work_experience",
+        "project_experience",
+        "avatar_url",
+    }
     @staticmethod
     async def create_candidate(payload: CandidateCreate) -> Optional[Candidate]:
         prompt_obj = None
@@ -131,7 +146,23 @@ class CandidateService:
         # 只能更新未删除的
         candidate = await Candidate.get_or_none(id=candidate_id, is_deleted=0)
         if candidate:
-            await candidate.update_from_dict(update_data)
+            filtered_data = {
+                key: value
+                for key, value in update_data.items()
+                if key in CandidateService._UPDATE_FIELDS
+            }
+
+            if "schooltier" in filtered_data and isinstance(
+                filtered_data["schooltier"], SchoolTier
+            ):
+                filtered_data["schooltier"] = filtered_data["schooltier"].value
+            if "degree" in filtered_data and isinstance(filtered_data["degree"], Degree):
+                filtered_data["degree"] = filtered_data["degree"].value
+
+            if "skills" in filtered_data:
+                filtered_data["skills"] = normalize_skills_lower(filtered_data["skills"])
+
+            await candidate.update_from_dict(filtered_data)
             await candidate.save()
             return candidate
         return None
@@ -164,7 +195,6 @@ class CandidateService:
             await query.update(is_deleted=1)
 
         return count
-
 
 
 

@@ -70,3 +70,49 @@ class CandidateCreate(BaseModel):
              raise ValueError('毕业年份看似不合理，请检查')
 
         return year_str
+
+
+class CandidateUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=50, description="候选人姓名")
+    phone: Optional[str] = Field(None, description="联系电话")
+    email: Optional[EmailStr] = Field(None, description="邮箱地址")
+
+    university: Optional[str] = Field(None, description="毕业院校")
+    schooltier: Optional[SchoolTier] = Field(None, description="学校层次")
+    degree: Optional[Degree] = Field(None, description="学历")
+    major: Optional[str] = Field(None, description="专业")
+    graduation_time: Optional[str] = Field(None, description="毕业年份，建议输入4位数字")
+
+    skills: Optional[List[str]] = Field(None, description="技能标签列表")
+    work_experience: Optional[List[str]] = Field(None, description="工作经历列表")
+    project_experience: Optional[List[str]] = Field(None, description="项目经历列表")
+
+    @validator('phone')
+    def validate_phone(cls, v):
+        if v is None:
+            return v
+        if len(v) != 11:
+            raise ValueError('手机号长度必须为11位')
+        if not v.isdigit():
+            raise ValueError('手机号必须由纯数字组成')
+        if not v.startswith('1'):
+            raise ValueError('手机号格式不正确')
+        return v
+
+    @validator('graduation_time')
+    def validate_year(cls, v):
+        if not v:
+            return v
+
+        digits = [char for char in v if char.isdigit()]
+
+        if len(digits) < 4:
+            return v
+
+        year_str = "".join(digits[:4])
+
+        year_int = int(year_str)
+        if not (1900 <= year_int <= 2100):
+            raise ValueError('毕业年份看似不合理，请检查')
+
+        return year_str

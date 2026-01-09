@@ -1,12 +1,21 @@
 from fastapi import APIRouter, HTTPException, Body, Query, Form
 from typing import Optional
-from app.schemas.candidate import CandidateCreate
+from app.schemas.candidate import CandidateCreate, CandidateUpdate
 from app.services.candidate_service import CandidateService
 from app.enums.education import SchoolTier, Degree
 from datetime import datetime
 
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
+
+
+def parse_form_list(value: Optional[str]) -> Optional[list[str]]:
+    if value is None:
+        return None
+    if not value.strip():
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
 
 @router.post("/", summary="手动新增候选人")
 async def create_candidate(payload: CandidateCreate = Body(...)):
@@ -47,11 +56,49 @@ async def list_candidates(
     )
 
 @router.put("/{candidate_id}", summary="更新候选人信息")
-async def update_candidate(candidate_id: int, payload: dict = Body(...)):
+async def update_candidate(
+    candidate_id: int,
+    name: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    university: Optional[str] = Form(None),
+    schooltier: Optional[SchoolTier] = Form(None),
+    degree: Optional[Degree] = Form(None),
+    major: Optional[str] = Form(None),
+    graduation_time: Optional[str] = Form(None),
+    skills: Optional[str] = Form(
+        None,
+        description="技能列表，逗号分隔，如：Python, SQL",
+    ),
+    work_experience: Optional[str] = Form(
+        None,
+        description="工作经历列表，逗号分隔",
+    ),
+    project_experience: Optional[str] = Form(
+        None,
+        description="项目经历列表，逗号分隔",
+    ),
+):
     """
     人工修正候选人信息
     """
-    updated_obj = await CandidateService.update_candidate_info(candidate_id, payload)
+    payload = CandidateUpdate(
+        name=name,
+        phone=phone,
+        email=email,
+        university=university,
+        schooltier=schooltier,
+        degree=degree,
+        major=major,
+        graduation_time=graduation_time,
+        skills=parse_form_list(skills),
+        work_experience=parse_form_list(work_experience),
+        project_experience=parse_form_list(project_experience),
+    )
+    updated_obj = await CandidateService.update_candidate_info(
+        candidate_id,
+        payload.dict(exclude_none=True),
+    )
     if not updated_obj:
         raise HTTPException(status_code=404, detail="候选人不存在")
     return updated_obj
