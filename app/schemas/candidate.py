@@ -23,7 +23,6 @@ class CandidateCreate(BaseModel):
 
     prompt_id: Optional[int] = Field(None, description="关联岗位ID")
 
-    # --- 自定义校验器 (不使用正则) ---
 
     @validator('phone')
     def validate_phone(cls, v):

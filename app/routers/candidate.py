@@ -62,3 +62,4 @@ async def delete_candidate_by_info(
         raise HTTPException(status_code=404, detail="未找到符合条件的候选人")
 
     return {"message": f"成功删除了 {deleted_count} 名候选人"}
+

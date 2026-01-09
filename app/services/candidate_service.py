@@ -14,9 +14,8 @@ class CandidateService:
         major: Optional[str] = None,
         skill: Optional[str] = None,
     ):
-        """
-        获取候选人列表(过滤已删除)
-        """
+
+
         filters = Q(is_deleted=0)
         normalized_name = normalize_text_value(name)
         normalized_university = normalize_text_value(university)
@@ -108,3 +107,8 @@ class CandidateService:
             await query.update(is_deleted=1)
 
         return count
+
+
+
+
+
