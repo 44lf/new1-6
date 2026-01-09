@@ -21,7 +21,7 @@ class CandidateCreate(BaseModel):
     work_experience: List[str] = Field(default=[], description="工作经历列表")
     project_experience: List[str] = Field(default=[], description="项目经历列表")
 
-    prompt_id: Optional[int] = Field(None, description="关联岗位ID")
+    prompt_id: int = Field(..., description="关联岗位ID")
 
 
     @validator('phone')
@@ -70,4 +70,3 @@ class CandidateCreate(BaseModel):
              raise ValueError('毕业年份看似不合理，请检查')
 
         return year_str
-
