@@ -158,6 +158,7 @@ class ResumeService:
     @staticmethod
     async def get_resumes(
         status: Optional[int] = None,
+        status_list: Optional[str] = None,
         is_qualified: Optional[bool] = None,
         name: Optional[str] = None,
         university: Optional[str] = None,
@@ -177,7 +178,10 @@ class ResumeService:
         normalized_major = normalize_text_value(major)
         skill_terms = parse_skill_terms(skill)
 
-        if status is not None:
+        if status_list is not None:
+            parsed_statuses = parse_status_list(status_list)
+            filters &= Q(status__in=parsed_statuses)
+        elif status is not None:
             filters &= Q(status=status)
 
         if is_qualified is not None:
@@ -332,3 +336,37 @@ def parse_skill_terms(skill: Optional[str]) -> list[str]:
             result.append(normalize_skill_query(cleaned))
 
     return result
+
+
+def parse_status_list(status_list: Optional[str]) -> list[int]:
+    """解析状态列表字符串，提取数字并校验范围"""
+    if status_list is None:
+        return []
+
+    allowed_statuses = {0, 1, 2, 3, 4}
+    statuses = []
+    current = []
+
+    for char in status_list:
+        if char.isdigit():
+            current.append(char)
+        elif current:
+            statuses.append(int("".join(current)))
+            current = []
+
+    if current:
+        statuses.append(int("".join(current)))
+
+    if not statuses:
+        raise ValueError("未找到有效状态值")
+
+    invalid_statuses = [status for status in statuses if status not in allowed_statuses]
+    if invalid_statuses:
+        raise ValueError("存在无效状态值")
+
+    unique_statuses = []
+    for status in statuses:
+        if status not in unique_statuses:
+            unique_statuses.append(status)
+
+    return unique_statuses
