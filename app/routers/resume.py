@@ -7,6 +7,8 @@ from app.utils.minio_client import MinioClient
 from app.db.resume_table import Resume
 from app.prompts.base import BasePromptProvider
 from app.prompts.resume_prompt_provider import ResumePromptProvider
+from app.enums.education import SchoolTier, Degree
+
 
 router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
@@ -97,6 +99,8 @@ async def list_resumes(
     university: Optional[str] = Query(None, description="搜索学校"),
     major: Optional[str] = Query(None, description="搜索专业"),
     skill: Optional[str] = Query(None, description="搜索技能 (如: Python)"),
+    schooltier: Optional[SchoolTier] = Query(None, description="学校层次"),
+    degree: Optional[Degree] = Query(None, description='学历层次')
 ):
     return await ResumeService.get_resumes(
         status=status,
@@ -104,7 +108,9 @@ async def list_resumes(
         name=name,
         university=university,
         major=major,
-        skill=skill
+        skill=skill,
+        schooltier=schooltier,
+        degree=degree
     )
 
 @router.delete("/", summary="根据信息删除简历")

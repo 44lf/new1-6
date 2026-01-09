@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body, Query
 from typing import Optional
 from app.services.candidate_service import CandidateService
+from app.enums.education import SchoolTier, Degree
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
@@ -10,7 +11,9 @@ async def list_candidates(
     name: Optional[str] = Query(None, description="搜索姓名 (支持模糊)"),
     university: Optional[str] = Query(None, description="搜索毕业院校 (支持模糊)"),
     major: Optional[str] = Query(None, description="搜索专业 (支持模糊)"),
-    skill: Optional[str] = Query(None, description="搜索技能 (如: Python)")
+    skill: Optional[str] = Query(None, description="搜索技能 (如: Python)"),
+    schooltier: Optional[SchoolTier] = Query(None, description="学校层次"),
+    degree: Optional[Degree] = Query(None, description='学历层次')
 ):
     """
     **升级版查询功能**：
@@ -24,7 +27,9 @@ async def list_candidates(
         name=name,
         university=university,
         major=major,
-        skill=skill
+        skill=skill,
+        schooltier=schooltier,
+        degree=degree
     )
 
 @router.put("/{candidate_id}", summary="更新候选人信息")

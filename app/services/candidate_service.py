@@ -1,8 +1,7 @@
 from typing import Optional
-from tortoise.expressions import Q, RawSQL
+from tortoise.expressions import Q
 from app.db.candidate_table import Candidate
 from app.services.resume_service import normalize_text_value, parse_skill_terms
-
 
 class CandidateService:
     @staticmethod
@@ -13,7 +12,7 @@ class CandidateService:
         schooltier: Optional[str] = None,
         degree: Optional[str] = None,
         major: Optional[str] = None,
-        skill: Optional[str] = None
+        skill: Optional[str] = None,
     ):
         """
         获取候选人列表(过滤已删除)
@@ -21,8 +20,6 @@ class CandidateService:
         filters = Q(is_deleted=0)
         normalized_name = normalize_text_value(name)
         normalized_university = normalize_text_value(university)
-        normalized_schooltier = normalize_text_value(schooltier)
-        normalized_degree = normalize_text_value(degree)
         normalized_major = normalize_text_value(major)
         skill_terms = parse_skill_terms(skill)
 
@@ -37,14 +34,14 @@ class CandidateService:
         if normalized_university:
             filters &= Q(university__icontains=normalized_university)
 
-        if normalized_schooltier:
-            filters &= Q(schooltier__icontains=normalized_schooltier)
-
-        if normalized_degree:
-            filters &= Q(degree__icontains=normalized_degree)
-
         if normalized_major:
             filters &= Q(major__icontains=normalized_major)
+
+        if schooltier:
+            filters &= Q(schooltier=schooltier.value)
+
+        if degree:
+            filters &= Q(degree=degree.value)
 
         # 3. 技能查询优化 - 先查询后过滤方案
         query = Candidate.filter(filters).prefetch_related("resume", "prompt")
@@ -70,7 +67,7 @@ class CandidateService:
             return filtered_candidates
         else:
             # 没有技能过滤,直接返回
-            return await query.order_by("-created_at")
+                return await query.order_by("-created_at")
 
     @staticmethod
     async def update_candidate_info(candidate_id: int, update_data: dict):
