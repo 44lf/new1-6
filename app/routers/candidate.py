@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body, Query
+from fastapi import APIRouter, HTTPException, Body, Query, Form
 from typing import Optional
 from app.schemas.candidate import CandidateCreate
 from app.services.candidate_service import CandidateService
