@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 from typing import Optional
 from tortoise.expressions import Q
 from app.db.candidate_table import Candidate
@@ -164,6 +163,7 @@ class CandidateService:
             await query.update(is_deleted=1)
 
         return count
+
 
 
 
