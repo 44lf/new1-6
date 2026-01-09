@@ -40,7 +40,7 @@ class Candidate(models.Model):
 
     parse_result = fields.JSONField(null=True, description="AI解析结果")
 
-    created_at = fields.DatetimeField(auto_now_add=True)
+    selection_time = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
         table = "candidates"

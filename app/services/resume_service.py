@@ -257,8 +257,6 @@ class ResumeService:
         return await Resume.filter(is_deleted=0).values_list("id", flat=True)
 
 
-# ============ 工具函数 (不使用正则表达式) ============
-
 def normalize_skills_lower(skills: list[str]) -> list[str]:
     """标准化技能列表为小写"""
     if not skills:
