@@ -1,6 +1,6 @@
 # app/utils/helpers.py
 """
-通用工具函数 - 合并了 skill_utils 和 school_tier 的功能
+通用工具函数 - 合并了 skill_utils 的功能
 """
 from typing import Optional, List
 
@@ -29,47 +29,6 @@ def normalize_skills(skills) -> List[str]:
             result.append(s)
 
     return result
-
-
-# ==================== 学校层次推断 ====================
-
-# 985/211 学校关键词 (只列常见的，不用太全)
-TIER_985_211 = [
-    "清华", "北大", "复旦", "上交", "浙大", "南大", "中科大",
-    "哈工大", "西交", "北航", "北理", "人大", "武大", "华科",
-    "中山", "同济", "天大", "东南", "南开", "川大", "厦大"
-]
-
-# 双一流学校关键词
-TIER_DOUBLE_FIRST = [
-    "国科大", "南科大", "上科大", "北邮", "北交", "南航", "南理工",
-    "西工大", "电子科大", "重大", "吉大", "山大", "中南", "华东师大",
-    "华南理工", "东北大学", "华理", "苏大", "北科"
-]
-
-
-def infer_school_tier(university: Optional[str]) -> Optional[str]:
-    """
-    根据学校名称推断层次
-    返回: "985/211" | "双一流" | None
-    """
-    if not university:
-        return None
-
-    # 去掉空格，统一格式
-    name = university.strip().replace(" ", "").replace("大学", "")
-
-    # 检查 985/211
-    for keyword in TIER_985_211:
-        if keyword in name:
-            return "985/211"
-
-    # 检查双一流
-    for keyword in TIER_DOUBLE_FIRST:
-        if keyword in name:
-            return "双一流"
-
-    return None
 
 
 # ==================== 文本标准化 ====================
