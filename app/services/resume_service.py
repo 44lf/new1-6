@@ -1,7 +1,4 @@
 # app/services/resume_service.py
-"""
-简历服务 - 简化版
-"""
 import asyncio
 from datetime import datetime
 from typing import Optional, List
