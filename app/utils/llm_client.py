@@ -1,7 +1,4 @@
-# app/utils/llm_client.py
-"""
-LLM 客户端 - 简化版
-"""
+# app/utils/llm_client.py - 修复异常处理
 import json
 from openai import AsyncOpenAI
 from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
@@ -9,7 +6,6 @@ from app.utils.helpers import normalize_skills, extract_year
 from app.enums.education import infer_school_tier, normalize_school_tier
 
 
-# 初始化客户端
 client = AsyncOpenAI(
     api_key=LLM_API_KEY,
     base_url=LLM_BASE_URL
@@ -20,7 +16,6 @@ class LLMClient:
 
     @staticmethod
     def _build_system_prompt() -> str:
-        """构建系统提示词 - 固定不变"""
         return """你是一个专业的招聘助手，负责解析简历并输出结构化结果。
 
 【输出要求】
@@ -30,18 +25,18 @@ class LLMClient:
 
 【JSON 结构】
 {
-  "is_qualified": true,  // 是否符合岗位要求
+  "is_qualified": true,
   "name": "张三",
   "phone": "13800138000",
   "email": "zhangsan@example.com",
   "university": "清华大学",
-  "degree": "本科",  // 本科/硕士/博士/大专
+  "degree": "本科",
   "major": "计算机科学与技术",
   "graduation_year": "2024",
-  "skills": ["python", "java", "mysql"],  // 必须是小写的技能标签数组
+  "skills": ["python", "java", "mysql"],
   "work_experience": ["工作经历1", "工作经历2"],
   "projects": ["项目1", "项目2"],
-  "score": 85,  // 0-100的整数
+  "score": 85,
   "reason": "符合要求的简短理由"
 }
 
@@ -52,7 +47,6 @@ class LLMClient:
 
     @staticmethod
     def _build_user_prompt(criteria: str, resume_text: str) -> str:
-        """构建用户提示词"""
         return f"""【岗位筛选标准】
 {criteria}
 
@@ -63,7 +57,6 @@ class LLMClient:
 
     @staticmethod
     async def _call_api(system_prompt: str, user_prompt: str) -> str:
-        """调用 LLM API"""
         response = await client.chat.completions.create(
             model=LLM_MODEL_NAME,
             messages=[
@@ -81,14 +74,11 @@ class LLMClient:
 
     @staticmethod
     def _parse_json(content: str) -> dict:
-        """解析 JSON 响应"""
-        # 去掉可能的 markdown 标记
         clean = content.replace("```json", "").replace("```", "").strip()
 
         try:
             return json.loads(clean)
         except json.JSONDecodeError:
-            # 尝试提取 {} 之间的内容
             start = clean.find("{")
             end = clean.rfind("}")
             if start != -1 and end > start:
@@ -97,9 +87,7 @@ class LLMClient:
 
     @staticmethod
     def _normalize_result(data: dict) -> dict:
-        """
-        标准化 LLM 返回的结果
-        """
+        """【修复 Bug 5】标准化 LLM 返回的结果"""
         # 1. 技能标准化
         if "skills" in data:
             data["skills"] = normalize_skills(data["skills"])
@@ -108,11 +96,17 @@ class LLMClient:
         if "graduation_year" in data:
             data["graduation_year"] = extract_year(data["graduation_year"])
 
-        # 3. 学校层次推断 (如果 LLM 没返回)
+        # 3. 学校层次推断（确保一定有值）
         tier = normalize_school_tier(data.get("schooltier"))
-        if not tier:
+        if not tier or tier.value == "null":
             tier = infer_school_tier(data.get("university"))
-        data["schooltier"] = tier.value if tier else None
+
+        # 【修复】如果还是 None，设置为 "null" 字符串而不是 None
+        # 这样可以在数据库中明确表示"未知"
+        if tier:
+            data["schooltier"] = tier.value
+        else:
+            data["schooltier"] = "null"
 
         # 4. 确保必需字段存在
         data.setdefault("is_qualified", False)
@@ -123,48 +117,18 @@ class LLMClient:
     @staticmethod
     async def parse_resume(resume_text: str, criteria: str) -> dict:
         """
-        解析简历 - 主入口
-
-        参数:
-            resume_text: 简历文本内容
-            criteria: 岗位筛选标准
-
-        返回:
-            {
-                "is_qualified": bool,
-                "name": str,
-                "phone": str,
-                "email": str,
-                "university": str,
-                "schooltier": str,  # 自动推断
-                "degree": str,
-                "major": str,
-                "graduation_year": str,
-                "skills": list,
-                "work_experience": list,
-                "projects": list,
-                "score": int,
-                "reason": str
-            }
+        【修复 Bug 5】解析简历 - 改进异常处理
         """
         try:
-            # 1. 构建提示词
             system_prompt = LLMClient._build_system_prompt()
             user_prompt = LLMClient._build_user_prompt(criteria, resume_text)
-
-            # 2. 调用 API
             content = await LLMClient._call_api(system_prompt, user_prompt)
-
-            # 3. 解析 JSON
             data = LLMClient._parse_json(content)
-
-            # 4. 标准化数据
             data = LLMClient._normalize_result(data)
-
             return data
 
         except Exception as e:
-            # 出错时返回默认结构
+            # 【修复】出错时也要确保 schooltier 有默认值
             print(f"LLM 解析失败: {e}")
             return {
                 "is_qualified": False,
@@ -172,7 +136,7 @@ class LLMClient:
                 "phone": None,
                 "email": None,
                 "university": None,
-                "schooltier": None,
+                "schooltier": "null",  # 明确设置为 "null" 而不是 None
                 "degree": None,
                 "major": None,
                 "graduation_year": None,

@@ -8,7 +8,6 @@ from app.settings import (
 )
 
 class MinioClient:
-    # 初始化客户端
     client = Minio(
         MINIO_ENDPOINT,
         access_key=MINIO_ACCESS_KEY,
@@ -26,9 +25,7 @@ class MinioClient:
 
     @classmethod
     async def _upload_raw(cls, data: bytes, object_name: str, content_type: str) -> str:
-        """
-        [内部通用方法] 上传二进制数据
-        """
+        """[内部通用方法] 上传二进制数据"""
         def _put():
             cls.client.put_object(
                 MINIO_BUCKET_NAME,
@@ -37,10 +34,9 @@ class MinioClient:
                 length=len(data),
                 content_type=content_type
             )
-        
+
         await asyncio.to_thread(_put)
-        
-        # 拼接访问地址
+
         protocol = "https" if MINIO_SECURE else "http"
         return f"{protocol}://{MINIO_ENDPOINT}/{MINIO_BUCKET_NAME}/{object_name}"
 
@@ -48,7 +44,6 @@ class MinioClient:
     async def upload_file(cls, file: UploadFile, object_name: str) -> str:
         """上传 FastAPI 文件对象"""
         content = await file.read()
-        # 处理可能缺失的 content_type
         c_type = file.content_type or "application/octet-stream"
         return await cls._upload_raw(content, object_name, c_type)
 
@@ -59,18 +54,28 @@ class MinioClient:
 
     @classmethod
     async def get_file_bytes(cls, object_name: str) -> bytes:
-        """下载文件并返回二进制 (用于 PDF 解析)"""
+        """
+        【修复 Bug 6】下载文件并返回二进制
+        改进资源管理，确保连接正确释放
+        """
         def _get():
             response = None
+            data = None
             try:
                 response = cls.client.get_object(MINIO_BUCKET_NAME, object_name)
-                return response.read()
+                # 先读取数据
+                data = response.read()
+                return data
             except Exception as e:
-                print(f"MinIO 下载异常: {e}")
-                raise  # 抛出异常让业务层感知
+                print(f"MinIO 下载异常 [{object_name}]: {e}")
+                raise
             finally:
+                # 【修复】确保资源释放
                 if response:
-                    response.close()
-                    response.release_conn()
+                    try:
+                        response.close()
+                        response.release_conn()
+                    except Exception as cleanup_error:
+                        print(f"资源清理异常: {cleanup_error}")
 
         return await asyncio.to_thread(_get)
