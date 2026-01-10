@@ -1,11 +1,11 @@
 from app.db.skill_table import Skill
-from app.utils.skill_utils import normalize_skills_lower
+from app.utils.helpers import *
 
 
 class SkillService:
     @staticmethod
     async def get_or_create_skills(skills: list[str]) -> list[Skill]:
-        normalized = normalize_skills_lower(skills)
+        normalized = normalize_skills(skills)
         if not normalized:
             return []
 

@@ -9,7 +9,7 @@ class Prompt(models.Model):
     # 具体的提示词内容
     content = fields.TextField()
     
-    # 是否启用。逻辑上我们只允许一个是 True，其他的都是 False
+    # 只允许一个是 True，其他的都是 False
     is_active = fields.BooleanField(default=False)
 
     is_deleted = fields.IntField(default=0, description="逻辑删除状态，0=正常, 1=已删除")
