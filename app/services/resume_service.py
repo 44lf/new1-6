@@ -105,6 +105,8 @@ class ResumeService:
         resume.major = result.get("major")
         resume.graduation_time = result.get("graduation_year")
         resume.skills = normalize_skills(result.get("skills", []))
+        resume.work_experience = result.get("work_experience")
+        resume.projects = result.get("projects")
         resume.parse_result = result
 
         # 6. 设置状态
@@ -179,17 +181,43 @@ class ResumeService:
     # ==================== 查询相关 ====================
 
     @staticmethod
+    def _parse_date_input(value: Optional[str], *, is_end: bool) -> Optional[datetime]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        if text.isdigit() and len(text) == 4:
+            year = int(text)
+            if is_end:
+                return datetime(year, 12, 31, 23, 59, 59)
+            return datetime(year, 1, 1, 0, 0, 0)
+        if len(text) == 10 and "-" in text:
+            parsed = datetime.fromisoformat(text)
+            if is_end:
+                return parsed.replace(hour=23, minute=59, second=59)
+            return parsed
+        try:
+            return datetime.fromisoformat(text)
+        except ValueError as exc:
+            raise ValueError("日期格式不正确，请使用 YYYY 或 YYYY-MM-DD 或 ISO 格式") from exc
+
+    @staticmethod
     async def get_resumes(
         status: Optional[int] = None,
         status_list: Optional[str] = None,
         name: Optional[str] = None,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
         university: Optional[str] = None,
         schooltier: Optional[str] = None,
         degree: Optional[str] = None,
         major: Optional[str] = None,
         skill: Optional[str] = None,
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
     ):
         """
         多维度简历搜索 - 简化版
@@ -197,6 +225,9 @@ class ResumeService:
         # 基础过滤: 未删除
         query = Resume.filter(is_deleted=0)
         schooltier_value = normalize_school_tier(schooltier)
+        offset = (page - 1) * page_size
+        date_from_value = ResumeService._parse_date_input(date_from, is_end=False)
+        date_to_value = ResumeService._parse_date_input(date_to, is_end=True)
 
         # 状态过滤
         if status_list:
@@ -208,6 +239,10 @@ class ResumeService:
         # 文本字段模糊搜索
         if name:
             query = query.filter(name__icontains=name.strip())
+        if email:
+            query = query.filter(email__icontains=email.strip())
+        if phone:
+            query = query.filter(phone__icontains=phone.strip())
         if university:
             terms = expand_university_query(university)
             if terms:
@@ -222,30 +257,44 @@ class ResumeService:
             query = query.filter(major__icontains=major.strip())
 
         # 时间范围
-        if date_from:
-            query = query.filter(created_at__gte=date_from)
-        if date_to:
-            query = query.filter(created_at__lte=date_to)
+        if date_from_value:
+            query = query.filter(created_at__gte=date_from_value)
+        if date_to_value:
+            query = query.filter(created_at__lte=date_to_value)
 
         # 技能搜索 (通过多对多关系)
+        use_distinct = False
         if skill:
             skill_terms = [s.strip().lower() for s in skill.replace("，", ",").split(",") if s.strip()]
             for term in skill_terms:
                 query = query.filter(skill_tags__name=term)
-
-            results = await query.prefetch_related("skill_tags").order_by("-created_at").distinct()
-        else:
-            # 普通查询
-            results = await query.prefetch_related("skill_tags").order_by("-created_at")
+            use_distinct = True
 
         if schooltier_value:
+            results_query = query.prefetch_related("skill_tags").order_by("-created_at")
+            if use_distinct:
+                results_query = results_query.distinct()
+            results = await results_query
             results = [
                 resume
                 for resume in results
                 if ResumeService._matches_school_tier(resume, schooltier_value)
             ]
+            total = len(results)
+            items = results[offset:offset + page_size]
+        else:
+            total = await query.count()
+            results_query = query.prefetch_related("skill_tags").order_by("-created_at")
+            if use_distinct:
+                results_query = results_query.distinct()
+            items = await results_query.offset(offset).limit(page_size)
 
-        return results
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
 
     @staticmethod
     def _resolve_school_tier(raw_tier: Optional[str], university: Optional[str]) -> Optional[SchoolTier]:
