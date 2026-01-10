@@ -5,7 +5,8 @@ LLM 客户端 - 简化版
 import json
 from openai import AsyncOpenAI
 from app.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
-from app.utils.helpers import normalize_skills, infer_school_tier, extract_year
+from app.utils.helpers import normalize_skills, extract_year
+from app.enums.education import infer_school_tier, normalize_school_tier
 
 
 # 初始化客户端
@@ -108,8 +109,10 @@ class LLMClient:
             data["graduation_year"] = extract_year(data["graduation_year"])
 
         # 3. 学校层次推断 (如果 LLM 没返回)
-        if not data.get("schooltier"):
-            data["schooltier"] = infer_school_tier(data.get("university"))
+        tier = normalize_school_tier(data.get("schooltier"))
+        if not tier:
+            tier = infer_school_tier(data.get("university"))
+        data["schooltier"] = tier.value if tier else None
 
         # 4. 确保必需字段存在
         data.setdefault("is_qualified", False)

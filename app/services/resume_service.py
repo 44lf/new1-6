@@ -14,6 +14,13 @@ from app.utils.minio_client import MinioClient
 from app.utils.llm_client import LLMClient
 from app.utils.pdf_parser import PdfParser
 from app.utils.helpers import normalize_skills
+from app.enums.education import (
+    SchoolTier,
+    normalize_school_tier,
+    infer_school_tier,
+    expand_university_query,
+)
+from tortoise.expressions import Q
 from app.settings import MINIO_BUCKET_NAME
 
 
@@ -192,6 +199,7 @@ class ResumeService:
         """
         # 基础过滤: 未删除
         query = Resume.filter(is_deleted=0)
+        schooltier_value = normalize_school_tier(schooltier)
 
         # 状态过滤
         if status_list:
@@ -204,11 +212,15 @@ class ResumeService:
         if name:
             query = query.filter(name__icontains=name.strip())
         if university:
-            query = query.filter(university__icontains=university.strip())
-        if schooltier:
-            query = query.filter(schooltier__icontains=schooltier.strip())
+            terms = expand_university_query(university)
+            if terms:
+                term_query = Q(university__icontains=terms[0])
+                for term in terms[1:]:
+                    term_query |= Q(university__icontains=term)
+                query = query.filter(term_query)
         if degree:
-            query = query.filter(degree__icontains=degree.strip())
+            degree_value = degree.value if hasattr(degree, "value") else str(degree)
+            query = query.filter(degree__icontains=degree_value.strip())
         if major:
             query = query.filter(major__icontains=major.strip())
 
@@ -225,10 +237,32 @@ class ResumeService:
                 query = query.filter(skill_tags__name=term)
 
             results = await query.prefetch_related("skill_tags").order_by("-created_at").distinct()
-            return results
+        else:
+            # 普通查询
+            results = await query.prefetch_related("skill_tags").order_by("-created_at")
 
-        # 普通查询
-        return await query.prefetch_related("skill_tags").order_by("-created_at")
+        if schooltier_value:
+            results = [
+                resume
+                for resume in results
+                if ResumeService._matches_school_tier(resume, schooltier_value)
+            ]
+
+        return results
+
+    @staticmethod
+    def _resolve_school_tier(raw_tier: Optional[str], university: Optional[str]) -> Optional[SchoolTier]:
+        normalized = normalize_school_tier(raw_tier)
+        if normalized and normalized != SchoolTier.null:
+            return normalized
+        return infer_school_tier(university)
+
+    @staticmethod
+    def _matches_school_tier(resume: Resume, target: SchoolTier) -> bool:
+        resolved = ResumeService._resolve_school_tier(resume.schooltier, resume.university)
+        if target == SchoolTier.null:
+            return resolved is None
+        return resolved == target
 
     # ==================== 删除相关 ====================
 
