@@ -23,6 +23,25 @@ class ResumeService:
     async def create_resume_record(file_url):
         return await Resume.create(file_url=file_url, status=0)
 
+    @staticmethod
+    async def create_manual_resume(**payload):
+        skills = normalize_skills(payload.get("skills"))
+        return await Resume.create(
+            file_url=payload["file_url"],
+            status=2,
+            name=payload.get("name"),
+            phone=payload.get("phone"),
+            email=payload.get("email"),
+            university=payload.get("university"),
+            schooltier=payload.get("schooltier"),
+            degree=payload.get("degree"),
+            major=payload.get("major"),
+            graduation_time=payload.get("graduation_time"),
+            skills=skills or None,
+            work_experience=payload.get("work_experience"),
+            projects=payload.get("projects"),
+        )
+
     @classmethod
     async def process_resume_workflow(cls, resume_id):
         """后台解析简历"""
