@@ -1,7 +1,7 @@
 # app/services/resume_service.py
 import asyncio
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 
 from app.db.resume_table import Resume
 from app.db.resume_evaluation_table import ResumeEvaluation
@@ -105,6 +105,8 @@ class ResumeService:
         resume.major = result.get("major")
         resume.graduation_time = result.get("graduation_year")
         resume.skills = normalize_skills(result.get("skills", []))
+        resume.work_experience = result.get("work_experience")
+        resume.projects = result.get("projects")
         resume.parse_result = result
 
         # 6. 设置状态
@@ -179,24 +181,149 @@ class ResumeService:
     # ==================== 查询相关 ====================
 
     @staticmethod
+    def _parse_date_input(value: Optional[str], *, is_end: bool) -> Optional[datetime]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        if text.isdigit() and len(text) == 4:
+            year = int(text)
+            if is_end:
+                return datetime(year, 12, 31, 23, 59, 59)
+            return datetime(year, 1, 1, 0, 0, 0)
+        if len(text) == 10 and "-" in text:
+            parsed = datetime.fromisoformat(text)
+            if is_end:
+                return parsed.replace(hour=23, minute=59, second=59)
+            return parsed
+        try:
+            return datetime.fromisoformat(text)
+        except ValueError as exc:
+            raise ValueError("日期格式不正确，请使用 YYYY 或 YYYY-MM-DD 或 ISO 格式") from exc
+
+    @staticmethod
+    def _normalize_logic(value: Optional[str]) -> str:
+        if not value:
+            return "and"
+        text = str(value).strip().lower()
+        if text in {"and", "or", "not"}:
+            return text
+        return "and"
+
+    @staticmethod
+    def _build_filter_condition(field: Optional[str], op: Optional[str], value: Optional[str]) -> Optional[Q]:
+        if not field or value is None or value == "":
+            return None
+
+        field_map = {
+            "name": "name",
+            "university": "university",
+            "degree": "degree",
+            "major": "major",
+            "email": "email",
+            "phone": "phone",
+            "status": "status",
+            "schooltier": "schooltier",
+            "skill": "skill_tags__name",
+        }
+        orm_field = field_map.get(field)
+        if not orm_field:
+            raise ValueError(f"不支持的筛选字段: {field}")
+
+        op_value = (op or "contains").strip().lower()
+        normalized_value = value
+        if field == "skill":
+            normalized_value = value.strip().lower()
+
+        if op_value == "contains":
+            return Q(**{f"{orm_field}__icontains": normalized_value})
+        if op_value == "not_contains":
+            return ~Q(**{f"{orm_field}__icontains": normalized_value})
+        raise ValueError("筛选关系必须是 contains 或 not_contains")
+
+    @classmethod
+    def _build_block_filters(
+        cls,
+        blocks: List[Dict[str, Optional[str]]],
+        logics: List[Optional[str]],
+    ) -> Optional[Q]:
+        expressions: List[Q] = []
+        for block in blocks:
+            expr = cls._build_filter_condition(
+                block.get("field"),
+                block.get("op"),
+                block.get("value"),
+            )
+            if expr is not None:
+                expressions.append(expr)
+
+        if not expressions:
+            return None
+
+        result = expressions[0]
+        for idx in range(1, len(expressions)):
+            logic = cls._normalize_logic(logics[idx - 1] if idx - 1 < len(logics) else None)
+            next_expr = expressions[idx]
+            if logic == "or":
+                result |= next_expr
+            elif logic == "not":
+                result &= ~next_expr
+            else:
+                result &= next_expr
+        return result
+
+    @staticmethod
     async def get_resumes(
         status: Optional[int] = None,
         status_list: Optional[str] = None,
         name: Optional[str] = None,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
         university: Optional[str] = None,
         schooltier: Optional[str] = None,
         degree: Optional[str] = None,
         major: Optional[str] = None,
         skill: Optional[str] = None,
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+        filter1_field: Optional[str] = None,
+        filter1_op: Optional[str] = None,
+        filter1_value: Optional[str] = None,
+        logic1: Optional[str] = None,
+        filter2_field: Optional[str] = None,
+        filter2_op: Optional[str] = None,
+        filter2_value: Optional[str] = None,
+        logic2: Optional[str] = None,
+        filter3_field: Optional[str] = None,
+        filter3_op: Optional[str] = None,
+        filter3_value: Optional[str] = None,
+        logic3: Optional[str] = None,
+        filter4_field: Optional[str] = None,
+        filter4_op: Optional[str] = None,
+        filter4_value: Optional[str] = None,
     ):
         """
         多维度简历搜索 - 简化版
         """
         # 基础过滤: 未删除
         query = Resume.filter(is_deleted=0)
+        blocks = [
+            {"field": filter1_field, "op": filter1_op, "value": filter1_value},
+            {"field": filter2_field, "op": filter2_op, "value": filter2_value},
+            {"field": filter3_field, "op": filter3_op, "value": filter3_value},
+            {"field": filter4_field, "op": filter4_op, "value": filter4_value},
+        ]
+        logics = [logic1, logic2, logic3]
+        filter_expression = ResumeService._build_block_filters(blocks, logics)
+        if filter_expression is not None:
+            query = query.filter(filter_expression)
         schooltier_value = normalize_school_tier(schooltier)
+        offset = (page - 1) * page_size
+        date_from_value = ResumeService._parse_date_input(date_from, is_end=False)
+        date_to_value = ResumeService._parse_date_input(date_to, is_end=True)
 
         # 状态过滤
         if status_list:
@@ -208,6 +335,10 @@ class ResumeService:
         # 文本字段模糊搜索
         if name:
             query = query.filter(name__icontains=name.strip())
+        if email:
+            query = query.filter(email__icontains=email.strip())
+        if phone:
+            query = query.filter(phone__icontains=phone.strip())
         if university:
             terms = expand_university_query(university)
             if terms:
@@ -222,30 +353,46 @@ class ResumeService:
             query = query.filter(major__icontains=major.strip())
 
         # 时间范围
-        if date_from:
-            query = query.filter(created_at__gte=date_from)
-        if date_to:
-            query = query.filter(created_at__lte=date_to)
+        if date_from_value:
+            query = query.filter(created_at__gte=date_from_value)
+        if date_to_value:
+            query = query.filter(created_at__lte=date_to_value)
 
         # 技能搜索 (通过多对多关系)
+        use_distinct = False
         if skill:
             skill_terms = [s.strip().lower() for s in skill.replace("，", ",").split(",") if s.strip()]
             for term in skill_terms:
                 query = query.filter(skill_tags__name=term)
-
-            results = await query.prefetch_related("skill_tags").order_by("-created_at").distinct()
-        else:
-            # 普通查询
-            results = await query.prefetch_related("skill_tags").order_by("-created_at")
+            use_distinct = True
+        if any(block.get("field") == "skill" and block.get("value") for block in blocks):
+            use_distinct = True
 
         if schooltier_value:
+            results_query = query.prefetch_related("skill_tags").order_by("-created_at")
+            if use_distinct:
+                results_query = results_query.distinct()
+            results = await results_query
             results = [
                 resume
                 for resume in results
                 if ResumeService._matches_school_tier(resume, schooltier_value)
             ]
+            total = len(results)
+            items = results[offset:offset + page_size]
+        else:
+            total = await query.count()
+            results_query = query.prefetch_related("skill_tags").order_by("-created_at")
+            if use_distinct:
+                results_query = results_query.distinct()
+            items = await results_query.offset(offset).limit(page_size)
 
-        return results
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
 
     @staticmethod
     def _resolve_school_tier(raw_tier: Optional[str], university: Optional[str]) -> Optional[SchoolTier]:
