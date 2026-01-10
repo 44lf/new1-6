@@ -74,9 +74,3 @@ class MinioClient:
                     response.release_conn()
 
         return await asyncio.to_thread(_get)
-
-    @classmethod
-    async def get_file_content(cls, object_name: str) -> str:
-        """下载文本内容 (用于读取 Markdown/Txt)"""
-        data = await cls.get_file_bytes(object_name)
-        return data.decode('utf-8')

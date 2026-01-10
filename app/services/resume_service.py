@@ -96,13 +96,17 @@ class ResumeService:
         result = await LLMClient.parse_resume(text_content, prompt.content)
 
         # 5. 保存基本信息
-        resume.name = result.get("name")
-        resume.phone = result.get("phone")
-        resume.email = result.get("email")
-        resume.university = result.get("university")
-        resume.schooltier = result.get("schooltier")
-        resume.degree = result.get("degree")
-        resume.major = result.get("major")
+        field_map = {
+            "name": "name",
+            "phone": "phone",
+            "email": "email",
+            "university": "university",
+            "schooltier": "schooltier",
+            "degree": "degree",
+            "major": "major",
+        }
+        for attr, key in field_map.items():
+            setattr(resume, attr, result.get(key))
         resume.graduation_time = result.get("graduation_year")
         resume.skills = normalize_skills(result.get("skills", []))
         resume.work_experience = result.get("work_experience")

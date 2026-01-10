@@ -1,5 +1,5 @@
 from app.db.skill_table import Skill
-from app.utils.helpers import *
+from app.utils.helpers import normalize_skills
 
 
 class SkillService:
@@ -21,14 +21,3 @@ class SkillService:
             existing_skills = await Skill.filter(name__in=normalized)
 
         return existing_skills
-
-    @staticmethod
-    async def backfill_skill_tags() -> None:
-        from app.db.resume_table import Resume
-
-        resumes = await Resume.all()
-        for resume in resumes:
-            resume_skills = await SkillService.get_or_create_skills(resume.skills or [])
-            await resume.skill_tags.clear()
-            if resume_skills:
-                await resume.skill_tags.add(*resume_skills)

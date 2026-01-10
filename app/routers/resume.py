@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Query
 from typing import Optional
 
@@ -44,11 +43,6 @@ async def upload_resume(
             "file_url": file_url,
         },
     }
-
-
-
-
-
 
 @router.post("/{resume_id}/analyze", summary="重新分析单份简历")
 async def resume_analyze(
