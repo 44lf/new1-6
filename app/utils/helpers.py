@@ -31,16 +31,6 @@ def normalize_skills(skills) -> List[str]:
     return result
 
 
-# ==================== 文本标准化 ====================
-
-def normalize_text(text: Optional[str]) -> Optional[str]:
-    """标准化文本: 去空格，空字符串转 None"""
-    if not text:
-        return None
-    normalized = text.strip()
-    return normalized if normalized else None
-
-
 def extract_year(text: Optional[str]) -> Optional[str]:
     """
     从文本中提取4位年份

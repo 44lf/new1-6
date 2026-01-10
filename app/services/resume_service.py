@@ -96,13 +96,17 @@ class ResumeService:
         result = await LLMClient.parse_resume(text_content, prompt.content)
 
         # 5. 保存基本信息
-        resume.name = result.get("name")
-        resume.phone = result.get("phone")
-        resume.email = result.get("email")
-        resume.university = result.get("university")
-        resume.schooltier = result.get("schooltier")
-        resume.degree = result.get("degree")
-        resume.major = result.get("major")
+        field_map = {
+            "name": "name",
+            "phone": "phone",
+            "email": "email",
+            "university": "university",
+            "schooltier": "schooltier",
+            "degree": "degree",
+            "major": "major",
+        }
+        for attr, key in field_map.items():
+            setattr(resume, attr, result.get(key))
         resume.graduation_time = result.get("graduation_year")
         resume.skills = normalize_skills(result.get("skills", []))
         resume.work_experience = result.get("work_experience")
@@ -203,77 +207,6 @@ class ResumeService:
             raise ValueError("日期格式不正确，请使用 YYYY 或 YYYY-MM-DD 或 ISO 格式") from exc
 
     @staticmethod
-    def _normalize_logic(value: Optional[str]) -> str:
-        if not value:
-            return "and"
-        text = str(value).strip().lower()
-        if text in {"and", "or", "not"}:
-            return text
-        return "and"
-
-    @staticmethod
-    def _build_filter_condition(field: Optional[str], op: Optional[str], value: Optional[str]) -> Optional[Q]:
-        if not field or value is None or value == "":
-            return None
-
-        field_map = {
-            "name": "name",
-            "university": "university",
-            "degree": "degree",
-            "major": "major",
-            "email": "email",
-            "phone": "phone",
-            "status": "status",
-            "schooltier": "schooltier",
-            "skill": "skill_tags__name",
-        }
-        orm_field = field_map.get(field)
-        if not orm_field:
-            raise ValueError(f"不支持的筛选字段: {field}")
-
-        op_value = (op or "contains").strip().lower()
-        normalized_value = value
-        if field == "skill":
-            normalized_value = value.strip().lower()
-
-        if op_value == "contains":
-            return Q(**{f"{orm_field}__icontains": normalized_value})
-        if op_value == "not_contains":
-            return ~Q(**{f"{orm_field}__icontains": normalized_value})
-        raise ValueError("筛选关系必须是 contains 或 not_contains")
-
-    @classmethod
-    def _build_block_filters(
-        cls,
-        blocks: List[Dict[str, Optional[str]]],
-        logics: List[Optional[str]],
-    ) -> Optional[Q]:
-        expressions: List[Q] = []
-        for block in blocks:
-            expr = cls._build_filter_condition(
-                block.get("field"),
-                block.get("op"),
-                block.get("value"),
-            )
-            if expr is not None:
-                expressions.append(expr)
-
-        if not expressions:
-            return None
-
-        result = expressions[0]
-        for idx in range(1, len(expressions)):
-            logic = cls._normalize_logic(logics[idx - 1] if idx - 1 < len(logics) else None)
-            next_expr = expressions[idx]
-            if logic == "or":
-                result |= next_expr
-            elif logic == "not":
-                result &= ~next_expr
-            else:
-                result &= next_expr
-        return result
-
-    @staticmethod
     async def get_resumes(
         status: Optional[int] = None,
         status_list: Optional[str] = None,
@@ -289,37 +222,12 @@ class ResumeService:
         date_to: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
-        filter1_field: Optional[str] = None,
-        filter1_op: Optional[str] = None,
-        filter1_value: Optional[str] = None,
-        logic1: Optional[str] = None,
-        filter2_field: Optional[str] = None,
-        filter2_op: Optional[str] = None,
-        filter2_value: Optional[str] = None,
-        logic2: Optional[str] = None,
-        filter3_field: Optional[str] = None,
-        filter3_op: Optional[str] = None,
-        filter3_value: Optional[str] = None,
-        logic3: Optional[str] = None,
-        filter4_field: Optional[str] = None,
-        filter4_op: Optional[str] = None,
-        filter4_value: Optional[str] = None,
     ):
         """
         多维度简历搜索 - 简化版（带分页返回）
         """
         # 基础过滤: 未删除
         query = Resume.filter(is_deleted=0)
-        blocks = [
-            {"field": filter1_field, "op": filter1_op, "value": filter1_value},
-            {"field": filter2_field, "op": filter2_op, "value": filter2_value},
-            {"field": filter3_field, "op": filter3_op, "value": filter3_value},
-            {"field": filter4_field, "op": filter4_op, "value": filter4_value},
-        ]
-        logics = [logic1, logic2, logic3]
-        filter_expression = ResumeService._build_block_filters(blocks, logics)
-        if filter_expression is not None:
-            query = query.filter(filter_expression)
         schooltier_value = normalize_school_tier(schooltier)
         offset = (page - 1) * page_size
         date_from_value = ResumeService._parse_date_input(date_from, is_end=False)
@@ -364,8 +272,6 @@ class ResumeService:
             skill_terms = [s.strip().lower() for s in skill.replace("，", ",").split(",") if s.strip()]
             for term in skill_terms:
                 query = query.filter(skill_tags__name=term)
-            use_distinct = True
-        if any(block.get("field") == "skill" and block.get("value") for block in blocks):
             use_distinct = True
 
         if schooltier_value:
@@ -443,10 +349,10 @@ class ResumeService:
     @classmethod
     async def batch_reanalyze_resumes(cls, resume_ids: List[int]):
         """批量重新解析简历"""
-    # 1. 创建任务列表（但不 await 它们，而是让它们在后台跑）
+        # 1. 创建任务列表（但不 await 它们，而是让它们在后台跑）
         tasks = [cls.process_resume_workflow(rid) for rid in resume_ids]
 
-    # 2. 并发执行所有任务，semaphore 会自动控制同时只有 3 个在跑
+        # 2. 并发执行所有任务，semaphore 会自动控制同时只有 3 个在跑
         if tasks:
             await asyncio.gather(*tasks)
 

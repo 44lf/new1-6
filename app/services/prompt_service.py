@@ -1,7 +1,6 @@
 from app.db.prompt_table import Prompt
 from tortoise.transactions import in_transaction
 from typing import List, Optional
-from tortoise.expressions import Q
 
 class PromptService:
     @staticmethod
@@ -80,15 +79,3 @@ class PromptService:
     async def deactivate_all() -> None:
         """禁用所有提示词"""
         await Prompt.all().update(is_active=False)
-    
-    @staticmethod
-    async def search_prompts(keyword: str) -> List[Prompt]:
-        """根据关键词搜索提示词"""
-        return await Prompt.filter(
-            Q(name__icontains=keyword) | Q(content__icontains=keyword),
-            is_deleted=0
-        )
-    @staticmethod
-    async def get_prompts_count() -> int:
-        """获取有效提示词总数"""
-        return await Prompt.filter(is_deleted=0).count()

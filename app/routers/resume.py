@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Query
 from typing import Optional
 
@@ -44,11 +43,6 @@ async def upload_resume(
             "file_url": file_url,
         },
     }
-
-
-
-
-
 
 @router.post("/{resume_id}/analyze", summary="重新分析单份简历")
 async def resume_analyze(
@@ -106,21 +100,6 @@ async def list_resumes(
     date_to: Optional[str] = Query(None, description="结束日期/时间 (<=)，支持 YYYY 或 YYYY-MM-DD"),
     page: int = Query(1, ge=1, description="页码，从1开始"),
     page_size: int = Query(20, ge=1, le=200, description="每页数量"),
-    filter1_field: Optional[str] = Query(None, description="筛选1字段(如 name/university/degree/major/email/phone/schooltier/skill)"),
-    filter1_op: Optional[str] = Query(None, description="筛选1关系(contains/not_contains)"),
-    filter1_value: Optional[str] = Query(None, description="筛选1内容"),
-    logic1: Optional[str] = Query(None, description="筛选1与筛选2的逻辑(and/or/not)"),
-    filter2_field: Optional[str] = Query(None, description="筛选2字段(如 name/university/degree/major/email/phone/schooltier/skill)"),
-    filter2_op: Optional[str] = Query(None, description="筛选2关系(contains/not_contains)"),
-    filter2_value: Optional[str] = Query(None, description="筛选2内容"),
-    logic2: Optional[str] = Query(None, description="筛选2与筛选3的逻辑(and/or/not)"),
-    filter3_field: Optional[str] = Query(None, description="筛选3字段(如 name/university/degree/major/email/phone/schooltier/skill)"),
-    filter3_op: Optional[str] = Query(None, description="筛选3关系(contains/not_contains)"),
-    filter3_value: Optional[str] = Query(None, description="筛选3内容"),
-    logic3: Optional[str] = Query(None, description="筛选3与筛选4的逻辑(and/or/not)"),
-    filter4_field: Optional[str] = Query(None, description="筛选4字段(如 name/university/degree/major/email/phone/schooltier/skill)"),
-    filter4_op: Optional[str] = Query(None, description="筛选4关系(contains/not_contains)"),
-    filter4_value: Optional[str] = Query(None, description="筛选4内容"),
 ):
     try:
         return await ResumeService.get_resumes(
@@ -138,21 +117,6 @@ async def list_resumes(
             date_to=date_to,
             page=page,
             page_size=page_size,
-            filter1_field=filter1_field,
-            filter1_op=filter1_op,
-            filter1_value=filter1_value,
-            logic1=logic1,
-            filter2_field=filter2_field,
-            filter2_op=filter2_op,
-            filter2_value=filter2_value,
-            logic2=logic2,
-            filter3_field=filter3_field,
-            filter3_op=filter3_op,
-            filter3_value=filter3_value,
-            logic3=logic3,
-            filter4_field=filter4_field,
-            filter4_op=filter4_op,
-            filter4_value=filter4_value,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
