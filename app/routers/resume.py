@@ -95,19 +95,25 @@ async def list_resumes(
         description="状态列表，支持如 1,2 或 [状态1，状态2] 格式",
     ),
     name: Optional[str] = Query(None, description="搜索姓名"),
+    email: Optional[str] = Query(None, description="搜索邮箱"),
+    phone: Optional[str] = Query(None, description="搜索电话"),
     university: Optional[str] = Query(None, description="搜索学校"),
     major: Optional[str] = Query(None, description="搜索专业"),
     skill: Optional[str] = Query(None, description="搜索技能 (如: Python)"),
     schooltier: Optional[SchoolTier] = Query(None, description="学校层次"),
     degree: Optional[Degree] = Query(None, description='学历层次'),
-    date_from: Optional[datetime] = Query(None, description="起始日期/时间 (>=)"),
-    date_to: Optional[datetime] = Query(None, description="结束日期/时间 (<=)"),
+    date_from: Optional[str] = Query(None, description="起始日期/时间 (>=)，支持 YYYY 或 YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="结束日期/时间 (<=)，支持 YYYY 或 YYYY-MM-DD"),
+    page: int = Query(1, ge=1, description="页码，从1开始"),
+    page_size: int = Query(20, ge=1, le=200, description="每页数量"),
 ):
     try:
         return await ResumeService.get_resumes(
             status=status,
             status_list=status_list,
             name=name,
+            email=email,
+            phone=phone,
             university=university,
             major=major,
             skill=skill,
@@ -115,6 +121,8 @@ async def list_resumes(
             degree=degree,
             date_from=date_from,
             date_to=date_to,
+            page=page,
+            page_size=page_size,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
