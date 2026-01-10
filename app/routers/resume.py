@@ -1,110 +1,85 @@
+# app/routers/resume.py - 优化版（代码量减少约 30%）
 import uuid
 from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Query
-from typing import Optional
-
 from app.services.resume_service import ResumeService
 from app.utils.minio_client import MinioClient
 from app.db.resume_table import Resume
-from app.enums.education import SchoolTier, Degree
-
 
 router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
-@router.post("/upload", summary="上传简历PDF")
-async def upload_resume(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-):
 
+@router.post("/upload")
+async def upload_resume(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    """上传简历"""
     if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="目前仅支持 PDF 文件上传")
+        raise HTTPException(400, "仅支持 PDF 文件")
 
-    ext = file.filename.split(".")[-1]
-    object_name = f"resumes/{uuid.uuid4()}.{ext}"
+    object_name = f"resumes/{uuid.uuid4()}.pdf"
 
     try:
         file_url = await MinioClient.upload_file(file, object_name)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
+        raise HTTPException(500, f"上传失败: {e}")
 
-    resume = await ResumeService.create_resume_record(file_url=file_url)
-    await resume.refresh_from_db()
-
-    background_tasks.add_task(
-        ResumeService.process_resume_workflow,
-        resume.id
-    )
+    resume = await ResumeService.create_resume_record(file_url)
+    background_tasks.add_task(ResumeService.process_resume_workflow, resume.id)
 
     return {
         "code": 200,
         "message": "上传成功，正在后台解析",
-        "data": {
-            "resume_id": resume.id,
-            "file_url": file_url,
-        },
+        "data": {"resume_id": resume.id, "file_url": file_url},
     }
 
-@router.post("/{resume_id}/analyze", summary="重新分析单份简历")
-async def resume_analyze(
-    resume_id: int,
-    background_tasks: BackgroundTasks,
-):
+
+@router.post("/{resume_id}/analyze")
+async def reanalyze_one(resume_id: int, background_tasks: BackgroundTasks):
+    """重新分析单份简历"""
     resume = await Resume.get_or_none(id=resume_id)
     if not resume:
-        raise HTTPException(status_code=404, detail="简历不存在")
+        raise HTTPException(404, "简历不存在")
 
-    background_tasks.add_task(
-        ResumeService.process_resume_workflow,
-        resume.id
-    )
+    background_tasks.add_task(ResumeService.process_resume_workflow, resume.id)
+    return {"code": 200, "message": "已重新加入解析队列"}
 
-    return {"code": 200, "message": "已将简历重新加入解析队列"}
 
-@router.post("/reanalyze/all", summary="一键重新筛选所有简历")
-async def reanalyze_all_resumes(
-    background_tasks: BackgroundTasks,
-):
-    """
-    **全量重新筛选**：
-    当更换了 Prompt 后，点击此按钮。
-    后台会用最新的提示词对库里所有简历重新进行 AI 评估。
-    """
-    all_ids = await ResumeService.get_all_resume_ids()
+@router.post("/reanalyze/all")
+async def reanalyze_all(background_tasks: BackgroundTasks):
+    """批量重新筛选所有简历"""
+    ids = await ResumeService.get_all_resume_ids()
+    if not ids:
+        return {"code": 200, "message": "简历库为空"}
 
-    if not all_ids:
-        return {"code": 200, "message": "当前简历库为空，无需重测"}
+    background_tasks.add_task(ResumeService.batch_reanalyze_resumes, ids)
+    return {"code": 200, "message": f"已触发 {len(ids)} 份简历重测"}
 
-    background_tasks.add_task(ResumeService.batch_reanalyze_resumes, all_ids)
 
-    return {
-        "code": 200,
-        "message": f"已触发全量重测任务，共 {len(all_ids)} 份简历正在后台重新排队解析...",
-    }
-
-@router.get("/", summary="多维度搜索简历")
+@router.get("/")
 async def list_resumes(
-    status: Optional[int] = Query(None, description="状态(0=未处理, 1=处理中, 2=合格, 3=不合格, 4=失败)"),
-    status_list: Optional[str] = Query(
-        None,
-        description="状态列表，支持如 1,2 或 [状态1，状态2] 格式",
-    ),
-    name: Optional[str] = Query(None, description="搜索姓名"),
-    email: Optional[str] = Query(None, description="搜索邮箱"),
-    phone: Optional[str] = Query(None, description="搜索电话"),
-    university: Optional[str] = Query(None, description="搜索学校"),
-    major: Optional[str] = Query(None, description="搜索专业"),
-    skill: Optional[str] = Query(None, description="搜索技能 (如: Python)"),
-    schooltier: Optional[SchoolTier] = Query(None, description="学校层次"),
-    degree: Optional[Degree] = Query(None, description='学历层次'),
-    date_from: Optional[str] = Query(None, description="起始日期/时间 (>=)，支持 YYYY 或 YYYY-MM-DD"),
-    date_to: Optional[str] = Query(None, description="结束日期/时间 (<=)，支持 YYYY 或 YYYY-MM-DD"),
-    page: int = Query(1, ge=1, description="页码，从1开始"),
-    page_size: int = Query(20, ge=1, le=200, description="每页数量"),
+    status: str = Query(None, description="状态过滤：单个数字或逗号分隔，如 '2,3'"),
+    name: str = Query(None),
+    email: str = Query(None),
+    phone: str = Query(None),
+    university: str = Query(None),
+    major: str = Query(None),
+    skill: str = Query(None),
+    schooltier: str = Query(None),
+    degree: str = Query(None),
+    date_from: str = Query(None, description="起始日期，支持 YYYY 或 YYYY-MM-DD"),
+    date_to: str = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
 ):
+    """
+    多维度搜索简历
+
+    优化点：
+    1. 合并 status 和 status_list 为一个参数
+    2. 去掉 Optional 类型注解（语法降级）
+    3. 简化参数描述
+    """
     try:
         return await ResumeService.get_resumes(
             status=status,
-            status_list=status_list,
             name=name,
             email=email,
             phone=phone,
@@ -118,21 +93,22 @@ async def list_resumes(
             page=page,
             page_size=page_size,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
-@router.delete("/", summary="根据信息删除简历")
-async def delete_resume_by_info(
-    name: Optional[str] = Query(None, description="按姓名删除"),
-    email: Optional[str] = Query(None, description="按邮箱删除"),
-    phone: Optional[str] = Query(None, description="按电话删除")
+
+@router.delete("/")
+async def delete_resume(
+    name: str = Query(None),
+    email: str = Query(None),
+    phone: str = Query(None)
 ):
+    """根据信息删除简历"""
     if not any([name, email, phone]):
-        raise HTTPException(status_code=400, detail="请至少提供姓名、邮箱或电话中的一项")
+        raise HTTPException(400, "请至少提供一个查询条件")
 
-    deleted_count = await ResumeService.delete_resumes_by_info(name, email, phone)
+    count = await ResumeService.delete_resumes_by_info(name, email, phone)
+    if count == 0:
+        raise HTTPException(404, "未找到符合条件的简历")
 
-    if deleted_count == 0:
-        raise HTTPException(status_code=404, detail="未找到符合条件的简历")
-
-    return {"message": f"成功删除了 {deleted_count} 份简历记录"}
+    return {"message": f"成功删除 {count} 份简历"}

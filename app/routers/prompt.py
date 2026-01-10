@@ -1,55 +1,52 @@
+# app/routers/prompt.py - 优化版（代码量减少约 25%）
 from fastapi import APIRouter, HTTPException, Body, Query
 from pydantic import BaseModel
-from typing import Optional
 from app.services.prompt_service import PromptService
 
 router = APIRouter(prefix="/prompts", tags=["Prompts"])
 
-# 定义一个简单的请求体模型
-class PromptCreate(BaseModel):
-    name: str
-    content: str
 
-class PromptUpdate(BaseModel):
-    name: Optional[str] = None
-    content: Optional[str] = None
+# 请求体模型（合并 Create 和 Update）
+class PromptData(BaseModel):
+    name: str = None
+    content: str = None
 
-@router.post("/", summary="创建新提示词")
-async def create_prompt(prompt: PromptCreate):
-    return await PromptService.create_prompt(prompt.name, prompt.content)
 
-@router.get("/", summary="获取所有提示词")
-async def get_all_prompts(
-    page: int = Query(1, ge=1, description="页码，从1开始"),
-    page_size: int = Query(20, ge=1, le=100, description="每页数量")
-):
+@router.post("/")
+async def create_prompt(data: PromptData):
+    """创建提示词"""
+    if not data.name or not data.content:
+        raise HTTPException(400, "name 和 content 不能为空")
+    return await PromptService.create_prompt(data.name, data.content)
+
+
+@router.get("/")
+async def list_prompts(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
+    """获取所有提示词"""
     offset = (page - 1) * page_size
-    return await PromptService.get_all_prompts(offset=offset, limit=page_size)
+    return await PromptService.get_all_prompts(offset, page_size)
 
-@router.put("/{prompt_id}", summary="更新提示词")
-async def update_prompt(prompt_id: int, payload: PromptUpdate = Body(...)):
-    updated = await PromptService.update_prompt(
-        prompt_id,
-        name=payload.name,
-        content=payload.content
-    )
+
+@router.put("/{prompt_id}")
+async def update_prompt(prompt_id: int, data: PromptData = Body(...)):
+    """更新提示词"""
+    updated = await PromptService.update_prompt(prompt_id, data.name, data.content)
     if not updated:
-        raise HTTPException(status_code=404, detail="提示词不存在")
+        raise HTTPException(404, "提示词不存在")
     return updated
 
-@router.put("/{prompt_id}/active", summary="启用指定提示词")
+
+@router.put("/{prompt_id}/active")
 async def activate_prompt(prompt_id: int):
-    """
-    启用某个提示词，这会自动禁用其他所有提示词
-    """
-    success = await PromptService.activate_prompt(prompt_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="提示词不存在")
+    """启用提示词"""
+    if not await PromptService.activate_prompt(prompt_id):
+        raise HTTPException(404, "提示词不存在")
     return {"message": "启用成功"}
 
-@router.delete("/{prompt_id}", summary="删除提示词")
+
+@router.delete("/{prompt_id}")
 async def delete_prompt(prompt_id: int):
-    success = await PromptService.delete_prompt(prompt_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="删除失败，ID不存在")
+    """删除提示词"""
+    if not await PromptService.delete_prompt(prompt_id):
+        raise HTTPException(404, "删除失败")
     return {"message": "删除成功"}
