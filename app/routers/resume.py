@@ -53,36 +53,22 @@ async def create_manual_resume(
     work_experience: str = Form(None, description="工作经历"),
     projects: str = Form(None, description="项目经历"),
 ):
-    def _clean_text(value):
-        if value is None:
-            return None
-        text = str(value).strip()
-        return text or None
-
-    name_value = _clean_text(name)
-    phone_value = _clean_text(phone)
-    if not name_value or not phone_value:
+    if not name.strip() or not phone.strip():
         raise HTTPException(400, "姓名和手机号不能为空")
     manual_url = f"manual://{uuid.uuid4()}"
-    def _enum_value(value):
-        if not value:
-            return None
-        enum_value = value.value if hasattr(value, "value") else str(value)
-        return None if enum_value == "null" else enum_value
-
     resume = await ResumeService.create_manual_resume(
         file_url=manual_url,
-        name=name_value,
-        phone=phone_value,
-        email=_clean_text(email),
-        university=_clean_text(university),
-        schooltier=_enum_value(schooltier),
-        degree=_enum_value(degree),
-        major=_clean_text(major),
-        graduation_time=_clean_text(graduation_time),
-        skills=_clean_text(skills),
-        work_experience=_clean_text(work_experience),
-        projects=_clean_text(projects),
+        name=name.strip(),
+        phone=phone.strip(),
+        email=email.strip() if email else None,
+        university=university,
+        schooltier=schooltier.value if schooltier else None,
+        degree=degree.value if degree else None,
+        major=major,
+        graduation_time=graduation_time,
+        skills=skills,
+        work_experience=work_experience,
+        projects=projects,
     )
     return {"code": 200, "message": "手动录入成功", "data": {"resume_id": resume.id}}
 
