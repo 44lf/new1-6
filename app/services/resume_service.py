@@ -265,12 +265,12 @@ class ResumeService:
     @classmethod
     async def batch_reanalyze_resumes(cls, resume_ids: List[int]):
         """批量重新解析简历"""
-        for rid in resume_ids:
-            try:
-                await cls.process_resume_workflow(rid)
-                await asyncio.sleep(1)  # 避免请求过快
-            except Exception as e:
-                print(f"简历 {rid} 重新解析失败: {e}")
+    # 1. 创建任务列表（但不 await 它们，而是让它们在后台跑）
+        tasks = [cls.process_resume_workflow(rid) for rid in resume_ids]
+
+    # 2. 并发执行所有任务，semaphore 会自动控制同时只有 3 个在跑
+        if tasks:
+            await asyncio.gather(*tasks)
 
     @staticmethod
     async def get_all_resume_ids() -> List[int]:
