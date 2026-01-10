@@ -27,6 +27,9 @@ class Resume(models.Model):
     graduation_time = fields.CharField(max_length=50, null=True, description="毕业时间/年份")
     education_history = fields.JSONField(null=True, description="完整教育经历列表") # 备用，如果有多段教育
 
+    work_experience = fields.JSONField(null=True, description="工作经历列表")
+    projects = fields.JSONField(null=True, description="项目经历列表")
+
     #技能
     skills = fields.JSONField(null=True, description="技能标签列表，如 ['Python', 'Vue']")
     skill_tags: fields.ManyToManyRelation["Skill"] = fields.ManyToManyField(
