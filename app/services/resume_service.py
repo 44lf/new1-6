@@ -306,7 +306,7 @@ class ResumeService:
         filter4_value: Optional[str] = None,
     ):
         """
-        多维度简历搜索 - 简化版
+        多维度简历搜索 - 简化版（带分页返回）
         """
         # 基础过滤: 未删除
         query = Resume.filter(is_deleted=0)
